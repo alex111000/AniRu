@@ -21,7 +21,6 @@ import javax.inject.Inject
 class AnimeVostRepository @Inject constructor() {
 
     private val client = AnimeVostClient()
-    private val catalogMutex = Mutex()
     private val poolMutex = Mutex()
     private val detailsLocks = ConcurrentHashMap<String, Mutex>()
 
@@ -41,14 +40,15 @@ class AnimeVostRepository @Inject constructor() {
         page: Int = 1,
         sort: CatalogSort = CatalogSort.DATE,
         path: String? = null,
-    ): AnimePage = catalogMutex.withLock {
+    ): AnimePage =
+        // Category rows must not wait behind the multi-page pool used by the
+        // curated home rows. AnimeVostClient/OkHttp support concurrent GETs.
         withTimeout(NETWORK_TIMEOUT_MS) {
             client.getAnimeList(
                 page = page,
                 filter = CatalogFilter(path = path, sortBy = sort),
             )
         }
-    }
 
     suspend fun getCuratedSection(sort: CatalogSort): List<AnimePreview> {
         if (sort == CatalogSort.DATE) return getCatalog(page = 1).items

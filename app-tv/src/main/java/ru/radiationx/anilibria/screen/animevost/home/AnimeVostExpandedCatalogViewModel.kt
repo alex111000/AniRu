@@ -65,7 +65,7 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
 
     fun onRowSelected(rowId: Long) {
         val row = rowsData.value.firstOrNull { it.id == rowId } ?: return
-        if (row.path != null && row.loadState == AnimeVostCategoryLoadState.NOT_LOADED) {
+        if (row.shouldLoadOnSelection(loadingCategoryRowId)) {
             loadCategory(rowId, page = 1)
         }
     }
@@ -150,7 +150,7 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
         val path = row.path ?: return
         if (loadingCategoryRowId == rowId && categoryJob?.isActive == true) return
 
-        categoryJob?.cancel()
+        cancelActiveCategoryLoad()
         loadingCategoryRowId = rowId
         val existingCards = row.cards.filterIsInstance<LibriaCard>()
 
@@ -209,6 +209,26 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
         }
     }
 
+    private fun cancelActiveCategoryLoad() {
+        val cancelledRowId = loadingCategoryRowId
+        if (cancelledRowId != null && categoryJob?.isActive == true) {
+            updateRow(cancelledRowId) { row ->
+                if (row.loadState != AnimeVostCategoryLoadState.LOADING) {
+                    row
+                } else {
+                    row.copy(
+                        cards = row.cards.filterIsInstance<LibriaCard>() +
+                            LoadingCard("Загрузка аниме"),
+                        loadState = AnimeVostCategoryLoadState.NOT_LOADED,
+                    )
+                }
+            }
+        }
+        categoryJob?.cancel()
+        categoryJob = null
+        loadingCategoryRowId = null
+    }
+
     private fun updateRow(
         rowId: Long,
         transform: (AnimeVostCategoryRowState) -> AnimeVostCategoryRowState,
@@ -218,6 +238,12 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
         }
     }
 }
+
+internal fun AnimeVostCategoryRowState.shouldLoadOnSelection(activeRowId: Long?): Boolean =
+    path != null && (
+        loadState == AnimeVostCategoryLoadState.NOT_LOADED ||
+            (loadState == AnimeVostCategoryLoadState.LOADING && activeRowId != id)
+        )
 
 internal fun NavigationData.toCategoryDefinitions(): List<AnimeVostCategoryDefinition> = buildList {
     sections.forEach { add(AnimeVostCategoryDefinition(it.title, it.path)) }
