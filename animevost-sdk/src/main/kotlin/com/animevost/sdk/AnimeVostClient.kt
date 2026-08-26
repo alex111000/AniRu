@@ -18,6 +18,7 @@ import com.animevost.sdk.model.CommentPage
 import com.animevost.sdk.model.CommentReplyTemplate
 import com.animevost.sdk.model.CommentSubmissionResult
 import com.animevost.sdk.model.CatalogFilter
+import com.animevost.sdk.model.CatalogSort
 import com.animevost.sdk.model.FavoriteActionResult
 import com.animevost.sdk.model.NavigationData
 import com.animevost.sdk.model.PlaylistEpisode
