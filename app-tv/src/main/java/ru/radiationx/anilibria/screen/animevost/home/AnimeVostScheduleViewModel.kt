@@ -35,9 +35,9 @@ class AnimeVostScheduleViewModel @Inject constructor(
         val byUrl = visualPool.associateBy { normalizeUrl(it.url) }
         val byTitle = buildMap<String, AnimePreview> {
             visualPool.forEach { anime ->
-                putIfAbsent(normalizeTitle(anime.title), anime)
+                getOrPut(normalizeTitle(anime.title)) { anime }
                 anime.originalTitle?.takeIf { it.isNotBlank() }?.let { original ->
-                    putIfAbsent(normalizeTitle(original), anime)
+                    getOrPut(normalizeTitle(original)) { anime }
                 }
             }
         }
