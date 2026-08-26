@@ -54,8 +54,7 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
     companion object {
         const val CATEGORY_ROW_ID_BASE = 10_000L
         private const val NAVIGATION_ROW_ID = CATEGORY_ROW_ID_BASE
-        private const val INITIAL_PREFETCH_COUNT = 2
-        private const val MAX_CONCURRENT_CATEGORY_LOADS = 3
+        private const val MAX_CONCURRENT_CATEGORY_LOADS = 1
     }
 
     val rowsData = MutableStateFlow<List<AnimeVostCategoryRowState>>(emptyList())
@@ -126,12 +125,12 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
                         title = definition.title,
                         path = definition.path,
                         cards = listOf(LoadingCard("Загрузка аниме")),
-                        loadState = AnimeVostCategoryLoadState.NOT_LOADED,
+                        loadState = AnimeVostCategoryLoadState.LOADING,
                     )
                 }
                 rowsData.value = categoryRows
-                categoryRows.take(INITIAL_PREFETCH_COUNT).forEach { row ->
-                    loadCategory(row.id, page = 1)
+                categoryRows.toInitialCategoryLoadQueue().forEach { rowId ->
+                    loadCategory(rowId, page = 1, showLoading = false)
                 }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -155,18 +154,20 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
         }
     }
 
-    private fun loadCategory(rowId: Long, page: Int) {
+    private fun loadCategory(rowId: Long, page: Int, showLoading: Boolean = true) {
         val row = rowsData.value.firstOrNull { it.id == rowId } ?: return
         val path = row.path ?: return
         if (categoryJobs[rowId]?.isActive == true) return
 
         val existingCards = row.cards.filterIsInstance<LibriaCard>()
 
-        updateRow(rowId) {
-            it.copy(
-                cards = existingCards + LoadingCard("Загрузка аниме"),
-                loadState = AnimeVostCategoryLoadState.LOADING,
-            )
+        if (showLoading) {
+            updateRow(rowId) {
+                it.copy(
+                    cards = existingCards + LoadingCard("Загрузка аниме"),
+                    loadState = AnimeVostCategoryLoadState.LOADING,
+                )
+            }
         }
         val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
             categoryLoadSemaphore.withPermit {
@@ -235,6 +236,9 @@ internal fun AnimeVostCategoryRowState.shouldLoadOnSelection(activeRowIds: Set<L
         loadState == AnimeVostCategoryLoadState.NOT_LOADED ||
             (loadState == AnimeVostCategoryLoadState.LOADING && id !in activeRowIds)
         )
+
+internal fun List<AnimeVostCategoryRowState>.toInitialCategoryLoadQueue(): List<Long> =
+    filter { it.path != null }.map { it.id }
 
 internal fun NavigationData.toCategoryDefinitions(): List<AnimeVostCategoryDefinition> = buildList {
     sections.forEach { add(AnimeVostCategoryDefinition(it.title, it.path)) }

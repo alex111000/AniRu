@@ -91,6 +91,17 @@ class AnimeVostExpandedCatalogTest {
         assertTrue(nextRow.shouldLoadOnSelection(activeRowIds))
     }
 
+    @Test
+    fun initialQueueContainsEveryCategoryInDisplayOrder() {
+        val rows = listOf(
+            categoryRow(id = 10_001, loadState = AnimeVostCategoryLoadState.NOT_LOADED),
+            categoryRow(id = 10_002, loadState = AnimeVostCategoryLoadState.NOT_LOADED),
+            categoryRow(id = 10_003, loadState = AnimeVostCategoryLoadState.NOT_LOADED),
+        )
+
+        assertEquals(listOf(10_001L, 10_002L, 10_003L), rows.toInitialCategoryLoadQueue())
+    }
+
     private fun categoryRow(
         id: Long,
         loadState: AnimeVostCategoryLoadState,

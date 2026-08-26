@@ -73,7 +73,7 @@ jobs:
       - name: Upload AniRu APK
         uses: actions/upload-artifact@v6
         with:
-          name: AniRu-TV-v1.2.5-debug
+          name: AniRu-TV-v1.2.6-debug
           path: app-tv/build/outputs/apk/app/debug/*.apk
           if-no-files-found: error
 
@@ -81,7 +81,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: AniRu-v1.2.5-verification-reports
+          name: AniRu-v1.2.6-verification-reports
           path: |
             animevost-sdk/build/reports/tests/
             app-tv/build/reports/tests/
