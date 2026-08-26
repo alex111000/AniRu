@@ -70,10 +70,37 @@ class AnimeVostExpandedCatalogTest {
             loadState = AnimeVostCategoryLoadState.LOADING,
         )
 
-        assertFalse(row.shouldLoadOnSelection(activeRowId = row.id))
-        assertTrue(row.shouldLoadOnSelection(activeRowId = null))
-        assertTrue(row.shouldLoadOnSelection(activeRowId = row.id + 1))
+        assertFalse(row.shouldLoadOnSelection(activeRowIds = setOf(row.id)))
+        assertTrue(row.shouldLoadOnSelection(activeRowIds = emptySet()))
+        assertTrue(row.shouldLoadOnSelection(activeRowIds = setOf(row.id + 1)))
     }
+
+    @Test
+    fun movingFocusCanStartAnotherRowWithoutRestartingTheActiveRow() {
+        val activeRow = categoryRow(
+            id = AnimeVostExpandedCatalogViewModel.CATEGORY_ROW_ID_BASE + 1,
+            loadState = AnimeVostCategoryLoadState.LOADING,
+        )
+        val nextRow = categoryRow(
+            id = activeRow.id + 1,
+            loadState = AnimeVostCategoryLoadState.NOT_LOADED,
+        )
+        val activeRowIds = setOf(activeRow.id)
+
+        assertFalse(activeRow.shouldLoadOnSelection(activeRowIds))
+        assertTrue(nextRow.shouldLoadOnSelection(activeRowIds))
+    }
+
+    private fun categoryRow(
+        id: Long,
+        loadState: AnimeVostCategoryLoadState,
+    ) = AnimeVostCategoryRowState(
+        id = id,
+        title = "Категория",
+        path = "category/",
+        cards = emptyList(),
+        loadState = loadState,
+    )
 
     private fun link(title: String, path: String) = CatalogLink(
         title = title,

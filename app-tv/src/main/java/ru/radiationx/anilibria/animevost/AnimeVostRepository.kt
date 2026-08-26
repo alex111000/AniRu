@@ -43,7 +43,7 @@ class AnimeVostRepository @Inject constructor() {
     ): AnimePage =
         // Category rows must not wait behind the multi-page pool used by the
         // curated home rows. AnimeVostClient/OkHttp support concurrent GETs.
-        withTimeout(NETWORK_TIMEOUT_MS) {
+        withTimeout(CATALOG_TIMEOUT_MS) {
             client.getAnimeList(
                 page = page,
                 filter = CatalogFilter(path = path, sortBy = sort),
@@ -283,6 +283,7 @@ class AnimeVostRepository @Inject constructor() {
 
     private companion object {
         const val NETWORK_TIMEOUT_MS = 15_000L
+        const val CATALOG_TIMEOUT_MS = 35_000L
         const val PLAYLIST_TIMEOUT_MS = 12_000L
         const val POSTER_TIMEOUT_MS = 6_000L
         const val POOL_PAGES = 8
