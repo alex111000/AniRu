@@ -81,7 +81,7 @@ class AnimeVostCatalogStoreTest {
         assertEquals(4, calls.get())
     }
 
-    @Test fun networkFailureUsesSavedPageWithoutExtendingItsAge() = runBlocking {
+    @Test fun networkFailureUsesSavedPageWithoutExtendingItsAge() = runBlocking<Unit> {
         var now = 1_000L
         var fail = false
         val cache = AnimeVostCatalogCache(temporary.newFolder()) { now }

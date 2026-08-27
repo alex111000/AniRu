@@ -84,7 +84,7 @@ class AnimeVostCatalogLoadingTest {
         val row = vm.rowsData.value[2]
         vm.onLinkCardClick(row.id)
         assertEquals(LibriaCard.Type.AnimeVostCatalog("/c/", "Category c"), navigated.single().type)
-        assertEquals(listOf("/a/" to 1), source.requests)
+        assertEquals<List<Pair<String?, Int>>>(listOf("/a/" to 1), source.requests)
         vm.viewModelScope.cancel()
     }
 
@@ -143,7 +143,7 @@ class AnimeVostCatalogLoadingTest {
         // Clicking more while the cached page refreshes must not discard the action.
         vm.onLinkCardClick()
         advanceUntilIdle()
-        assertEquals(listOf("/c/" to 1, "/c/" to 2), source.requests)
+        assertEquals<List<Pair<String?, Int>>>(listOf("/c/" to 1, "/c/" to 2), source.requests)
         assertEquals(2, vm.cardsData.value.filterIsInstance<LibriaCard>().size)
         vm.onLinkCardClick()
         advanceUntilIdle()
