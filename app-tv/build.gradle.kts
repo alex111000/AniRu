@@ -32,8 +32,8 @@ android {
         applicationId = "com.aniru.tv"
         minSdk = libs.versions.tv.min.sdk.version.get().toInt()
         targetSdk = libs.versions.app.target.sdk.version.get().toInt()
-        versionCode = 18
-        versionName = "1.2.6"
+        versionCode = 19
+        versionName = "1.2.7"
         buildConfigField("String", "BUILD_DATE", "\"${getDateTime()}\"")
     }
 
@@ -74,7 +74,7 @@ android {
         create("rustore") {
             dimension = "type"
             buildConfigField("boolean", "FOR_RUSTORE", "true")
-            versionName = "1.2.6-rustore"
+            versionName = "1.2.7-rustore"
         }
     }
 }
@@ -144,6 +144,7 @@ dependencies {
     implementation(libs.media3.exoplayer.dash)
     implementation(libs.okhttp)
     implementation("org.jsoup:jsoup:1.18.3")
+    implementation("com.google.code.gson:gson:2.11.0")
 
     implementation(libs.mintpermissions)
     implementation(libs.mintpermissions.flows)
@@ -152,4 +153,5 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.3.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 }

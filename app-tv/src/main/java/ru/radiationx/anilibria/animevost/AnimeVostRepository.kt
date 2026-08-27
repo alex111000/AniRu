@@ -1,5 +1,6 @@
 package ru.radiationx.anilibria.animevost
 
+import android.content.Context
 import com.animevost.sdk.AnimeVostClient
 import com.animevost.sdk.model.AnimeDetails
 import com.animevost.sdk.model.AnimeEpisode
@@ -14,13 +15,21 @@ import com.animevost.sdk.model.VideoSource
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import java.io.File
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
-class AnimeVostRepository @Inject constructor() {
+class AnimeVostRepository @Inject constructor(context: Context) : AnimeVostCatalogSource {
 
     private val client = AnimeVostClient()
+    private val catalogStore = AnimeVostCatalogStore(
+        AnimeVostCatalogCache(File(context.cacheDir, "animevost-catalog-v1")),
+        fetchCatalog = { page, sort, path ->
+            client.getAnimeList(page, CatalogFilter(path = path, sortBy = sort))
+        },
+        fetchNavigation = { client.getNavigation() },
+    )
     private val poolMutex = Mutex()
     private val detailsLocks = ConcurrentHashMap<String, Mutex>()
 
@@ -31,24 +40,15 @@ class AnimeVostRepository @Inject constructor() {
 
     @Volatile private var cachedRecentPool: List<AnimePreview> = emptyList()
     @Volatile private var cachedRecentPoolAt: Long = 0L
-    @Volatile private var cachedNavigation: NavigationData? = null
-    @Volatile private var cachedNavigationAt: Long = 0L
     @Volatile private var cachedSchedule: List<ScheduleDay> = emptyList()
     @Volatile private var cachedScheduleAt: Long = 0L
 
-    suspend fun getCatalog(
-        page: Int = 1,
-        sort: CatalogSort = CatalogSort.DATE,
-        path: String? = null,
-    ): AnimePage =
-        // Category rows must not wait behind the multi-page pool used by the
-        // curated home rows. AnimeVostClient/OkHttp support concurrent GETs.
-        withTimeout(CATALOG_TIMEOUT_MS) {
-            client.getAnimeList(
-                page = page,
-                filter = CatalogFilter(path = path, sortBy = sort),
-            )
-        }
+    override suspend fun getCatalog(page: Int, sort: CatalogSort, path: String?): AnimePage =
+        catalogStore.getCatalog(page, sort, path)
+
+    override suspend fun getCachedCatalog(path: String?): AnimePage? = catalogStore.getCachedCatalog(path)
+
+    override suspend fun getCachedNavigation(): NavigationData? = catalogStore.getCachedNavigation()
 
     suspend fun getCuratedSection(sort: CatalogSort): List<AnimePreview> {
         if (sort == CatalogSort.DATE) return getCatalog(page = 1).items
@@ -161,16 +161,8 @@ class AnimeVostRepository @Inject constructor() {
     suspend fun search(query: String, page: Int = 1): AnimePage =
         withTimeout(NETWORK_TIMEOUT_MS) { client.searchAnime(query = query, page = page) }
 
-    suspend fun getNavigation(forceRefresh: Boolean = false): NavigationData {
-        val now = System.currentTimeMillis()
-        if (!forceRefresh && now - cachedNavigationAt < META_CACHE_MS) {
-            cachedNavigation?.let { return it }
-        }
-        val value = withTimeout(NETWORK_TIMEOUT_MS) { client.getNavigation() }
-        cachedNavigation = value
-        cachedNavigationAt = now
-        return value
-    }
+    override suspend fun getNavigation(forceRefresh: Boolean): NavigationData =
+        catalogStore.getNavigation(forceRefresh)
 
     suspend fun getSchedule(forceRefresh: Boolean = false): List<ScheduleDay> {
         val now = System.currentTimeMillis()
@@ -283,7 +275,6 @@ class AnimeVostRepository @Inject constructor() {
 
     private companion object {
         const val NETWORK_TIMEOUT_MS = 15_000L
-        const val CATALOG_TIMEOUT_MS = 35_000L
         const val PLAYLIST_TIMEOUT_MS = 12_000L
         const val POSTER_TIMEOUT_MS = 6_000L
         const val POOL_PAGES = 8

@@ -6,9 +6,7 @@ import com.animevost.sdk.model.NavigationData
 import ru.radiationx.anilibria.common.LibriaCard
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 class AnimeVostExpandedCatalogTest {
 
@@ -58,37 +56,6 @@ class AnimeVostExpandedCatalogTest {
         assertEquals("Dogulwang • 9 серия • ★ 4.0", card.description)
         val type = assertIs<LibriaCard.Type.AnimeVost>(card.type)
         assertEquals(preview.url, type.animeUrl)
-    }
-
-    @Test
-    fun orphanedLoadingRowCanRestartInsteadOfSpinningForever() {
-        val row = AnimeVostCategoryRowState(
-            id = AnimeVostExpandedCatalogViewModel.CATEGORY_ROW_ID_BASE + 1,
-            title = "Онгоинги",
-            path = "ongoing/",
-            cards = emptyList(),
-            loadState = AnimeVostCategoryLoadState.LOADING,
-        )
-
-        assertFalse(row.shouldLoadOnSelection(activeRowIds = setOf(row.id)))
-        assertTrue(row.shouldLoadOnSelection(activeRowIds = emptySet()))
-        assertTrue(row.shouldLoadOnSelection(activeRowIds = setOf(row.id + 1)))
-    }
-
-    @Test
-    fun movingFocusCanStartAnotherRowWithoutRestartingTheActiveRow() {
-        val activeRow = categoryRow(
-            id = AnimeVostExpandedCatalogViewModel.CATEGORY_ROW_ID_BASE + 1,
-            loadState = AnimeVostCategoryLoadState.LOADING,
-        )
-        val nextRow = categoryRow(
-            id = activeRow.id + 1,
-            loadState = AnimeVostCategoryLoadState.NOT_LOADED,
-        )
-        val activeRowIds = setOf(activeRow.id)
-
-        assertFalse(activeRow.shouldLoadOnSelection(activeRowIds))
-        assertTrue(nextRow.shouldLoadOnSelection(activeRowIds))
     }
 
     @Test

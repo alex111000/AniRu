@@ -48,6 +48,7 @@ class AnimeVostFragment : RowsSupportFragment() {
     private val scheduleViewModel by quillParentViewModel<AnimeVostScheduleViewModel>()
 
     private val categoryRows = mutableMapOf<Long, ListRow>()
+    private val fixedRows = mutableMapOf<Long, ListRow>()
 
     private fun getViewModel(rowId: Long): BaseCardsViewModel? = when (rowId) {
         LATEST_ROW_ID -> latestViewModel
@@ -86,37 +87,48 @@ class AnimeVostFragment : RowsSupportFragment() {
             }
         }
 
-        if (rowsAdapter.size() == 0) {
-            val fixedRows = listOf(LATEST_ROW_ID, POPULAR_ROW_ID, RATING_ROW_ID, DISCUSSED_ROW_ID, SCHEDULE_ROW_ID)
-                .associateWith { rowId ->
-                    createCardsRowBy(rowId, rowsAdapter, requireNotNull(getViewModel(rowId)))
-                }
+        // Subscriptions belong to the view, even when adapters survive a return from details.
+        listOf(LATEST_ROW_ID, POPULAR_ROW_ID, RATING_ROW_ID, DISCUSSED_ROW_ID, SCHEDULE_ROW_ID)
+            .forEach { rowId ->
+                fixedRows[rowId] = createCardsRowBy(
+                    rowId, rowsAdapter, requireNotNull(getViewModel(rowId)), fixedRows[rowId],
+                )
+            }
 
-            subscribeTo(expandedCatalogViewModel.rowsData) { states ->
-                val catalogRows = states.map { state ->
-                    val row = categoryRows.getOrPut(state.id) {
-                        ListRow(
-                            state.id,
-                            HeaderItem(state.title),
-                            ArrayObjectAdapter(
-                                CardPresenterSelector {
-                                    expandedCatalogViewModel.onLinkCardBind(state.id)
-                                }
-                            ),
-                        )
-                    }
-                    row.headerItem = HeaderItem(state.title)
-                    (row.adapter as ArrayObjectAdapter).setItems(state.cards, CardDiffCallback)
-                    row
+        val renderedStates = mutableMapOf<Long, AnimeVostCategoryRowState>()
+        subscribeTo(expandedCatalogViewModel.rowsData) { states ->
+            val catalogRows = states.map { state ->
+                val row = categoryRows.getOrPut(state.id) {
+                    ListRow(
+                        state.id,
+                        HeaderItem(state.title),
+                        ArrayObjectAdapter(CardPresenterSelector(null)),
+                    )
                 }
-                val allRows = listOf(
-                    requireNotNull(fixedRows[LATEST_ROW_ID]),
-                    requireNotNull(fixedRows[POPULAR_ROW_ID]),
-                    requireNotNull(fixedRows[RATING_ROW_ID]),
-                    requireNotNull(fixedRows[DISCUSSED_ROW_ID]),
-                ) + catalogRows + requireNotNull(fixedRows[SCHEDULE_ROW_ID])
+                if (row.headerItem.name != state.title) {
+                    row.headerItem = HeaderItem(state.title)
+                    val position = rowsAdapter.indexOf(row)
+                    if (position >= 0) rowsAdapter.notifyArrayItemRangeChanged(position, 1)
+                }
+                if (renderedStates[state.id]?.cards != state.cards) {
+                    (row.adapter as ArrayObjectAdapter).setItems(state.cards, CardDiffCallback)
+                }
+                renderedStates[state.id] = state
+                row
+            }
+            val allRows = listOf(
+                requireNotNull(fixedRows[LATEST_ROW_ID]),
+                requireNotNull(fixedRows[POPULAR_ROW_ID]),
+                requireNotNull(fixedRows[RATING_ROW_ID]),
+                requireNotNull(fixedRows[DISCUSSED_ROW_ID]),
+            ) + catalogRows + requireNotNull(fixedRows[SCHEDULE_ROW_ID])
+            // A completed request changes one row, not the entire Leanback screen.
+            if (rowsAdapter.size() != allRows.size || allRows.indices.any { rowsAdapter[it] !== allRows[it] }) {
                 rowsAdapter.setItems(allRows, RowDiffCallback)
             }
+            val ids = states.map { it.id }.toSet()
+            categoryRows.keys.retainAll(ids)
+            renderedStates.keys.retainAll(ids)
         }
 
     }

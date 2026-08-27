@@ -1,17 +1,16 @@
 package ru.radiationx.anilibria.screen.animevost.home
 
 import androidx.lifecycle.viewModelScope
+import com.animevost.sdk.model.AnimePage
 import com.animevost.sdk.model.AnimePreview
 import com.animevost.sdk.model.NavigationData
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
+import ru.radiationx.anilibria.animevost.AnimeVostCatalogSource
 import ru.radiationx.anilibria.animevost.AnimeVostRepository
 import ru.radiationx.anilibria.common.CardItem
 import ru.radiationx.anilibria.common.LibriaCard
@@ -20,21 +19,11 @@ import ru.radiationx.anilibria.common.LinkCard
 import ru.radiationx.anilibria.common.LoadingCard
 import ru.radiationx.anilibria.screen.LifecycleViewModel
 import timber.log.Timber
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
-data class AnimeVostCategoryDefinition(
-    val title: String,
-    val path: String,
-)
+data class AnimeVostCategoryDefinition(val title: String, val path: String)
 
-enum class AnimeVostCategoryLoadState {
-    NOT_LOADED,
-    LOADING,
-    LOADED,
-    EMPTY,
-    ERROR,
-}
+enum class AnimeVostCategoryLoadState { NOT_LOADED, LOADING, LOADED, EMPTY, ERROR }
 
 data class AnimeVostCategoryRowState(
     val id: Long,
@@ -46,22 +35,24 @@ data class AnimeVostCategoryRowState(
     val totalPages: Int = 1,
 )
 
-class AnimeVostExpandedCatalogViewModel @Inject constructor(
-    private val repository: AnimeVostRepository,
-    private val cardRouter: LibriaCardRouter,
+class AnimeVostExpandedCatalogViewModel internal constructor(
+    private val source: AnimeVostCatalogSource,
+    private val navigate: (LibriaCard) -> Unit,
 ) : LifecycleViewModel() {
+
+    @Inject constructor(repository: AnimeVostRepository, cardRouter: LibriaCardRouter) :
+        this(repository, cardRouter::navigate)
 
     companion object {
         const val CATEGORY_ROW_ID_BASE = 10_000L
         private const val NAVIGATION_ROW_ID = CATEGORY_ROW_ID_BASE
-        private const val MAX_CONCURRENT_CATEGORY_LOADS = 1
     }
 
     val rowsData = MutableStateFlow<List<AnimeVostCategoryRowState>>(emptyList())
-
     private var navigationJob: Job? = null
-    private val categoryJobs = ConcurrentHashMap<Long, Job>()
-    private val categoryLoadSemaphore = Semaphore(MAX_CONCURRENT_CATEGORY_LOADS)
+    private var categoryWorker: Job? = null
+    private var activeRowId: Long? = null
+    private val pendingRows = mutableListOf<Long>()
 
     override fun onColdCreate() {
         super.onColdCreate()
@@ -69,173 +60,134 @@ class AnimeVostExpandedCatalogViewModel @Inject constructor(
     }
 
     fun onRowSelected(rowId: Long) {
-        val row = rowsData.value.firstOrNull { it.id == rowId } ?: return
-        if (row.shouldLoadOnSelection(categoryJobs.keys)) {
-            loadCategory(rowId, page = 1)
-        }
+        // One background request at a time; the visible row goes next, not last.
+        if (pendingRows.remove(rowId)) pendingRows.add(0, rowId)
     }
 
     fun onLoadingCardClick(rowId: Long) {
         val row = rowsData.value.firstOrNull { it.id == rowId } ?: return
         if (row.path == null) {
             loadNavigation(forceRefresh = true)
-        } else {
-            val retryPage = if (
-                row.currentPage == 0 || row.loadState == AnimeVostCategoryLoadState.EMPTY
-            ) 1 else row.currentPage + 1
-            loadCategory(rowId, page = retryPage)
+        } else if (activeRowId != rowId) {
+            pendingRows.remove(rowId)
+            pendingRows.add(0, rowId)
+            startWorker()
         }
     }
 
-    fun onLinkCardBind(rowId: Long) {
-        val row = rowsData.value.firstOrNull { it.id == rowId } ?: return
-        if (row.loadState == AnimeVostCategoryLoadState.LOADED && row.currentPage < row.totalPages) {
-            loadCategory(rowId, page = row.currentPage + 1)
-        }
+    fun onLinkCardClick(rowId: Long) {
+        rowsData.value.firstOrNull { it.id == rowId }?.toCatalogCard()?.let(navigate)
     }
 
-    fun onLinkCardClick(rowId: Long) = onLinkCardBind(rowId)
-
-    fun onLibriaCardClick(card: LibriaCard) {
-        cardRouter.navigate(card)
-    }
+    fun onLibriaCardClick(card: LibriaCard) = navigate(card)
 
     private fun loadNavigation(forceRefresh: Boolean = false) {
         if (navigationJob?.isActive == true) return
-        categoryJobs.values.forEach { it.cancel() }
-        categoryJobs.clear()
-
-        rowsData.value = listOf(
-            AnimeVostCategoryRowState(
-                id = NAVIGATION_ROW_ID,
-                title = "Каталог AnimeVost",
-                path = null,
-                cards = listOf(LoadingCard("Загрузка категорий")),
-                loadState = AnimeVostCategoryLoadState.LOADING,
-            )
-        )
+        if (rowsData.value.none { it.path != null }) {
+            rowsData.value = listOf(navigationRow(LoadingCard("Загрузка категорий")))
+        }
         navigationJob = viewModelScope.launch {
             try {
-                val definitions = withContext(Dispatchers.IO) {
-                    repository.getNavigation(forceRefresh).toCategoryDefinitions()
-                }
-                val categoryRows = definitions.mapIndexed { index, definition ->
-                    AnimeVostCategoryRowState(
-                        id = CATEGORY_ROW_ID_BASE + index + 1,
-                        title = definition.title,
-                        path = definition.path,
-                        cards = listOf(LoadingCard("Загрузка аниме")),
-                        loadState = AnimeVostCategoryLoadState.LOADING,
-                    )
-                }
-                rowsData.value = categoryRows
-                categoryRows.toInitialCategoryLoadQueue().forEach { rowId ->
-                    loadCategory(rowId, page = 1, showLoading = false)
-                }
-            } catch (error: Throwable) {
-                if (error is CancellationException) throw error
+                // Restore every saved preview before waiting for any network request.
+                val cached = source.getCachedNavigation()
+                if (cached != null) showCategories(cached)
+                val fresh = source.getNavigation(forceRefresh)
+                if (cached == null || fresh != cached) showCategories(fresh)
+            } catch (error: Exception) {
+                currentCoroutineContext().ensureActive()
                 Timber.e(error)
-                rowsData.value = listOf(
-                    AnimeVostCategoryRowState(
-                        id = NAVIGATION_ROW_ID,
-                        title = "Каталог AnimeVost",
-                        path = null,
-                        cards = listOf(
-                            LoadingCard(
-                                title = "Повторить загрузку",
-                                description = "Не удалось загрузить категории: ${error.message}",
-                                isError = true,
-                            )
-                        ),
-                        loadState = AnimeVostCategoryLoadState.ERROR,
-                    )
-                )
+                if (rowsData.value.none { it.path != null }) {
+                    rowsData.value = listOf(navigationRow(errorCard(error), AnimeVostCategoryLoadState.ERROR))
+                }
             }
         }
     }
 
-    private fun loadCategory(rowId: Long, page: Int, showLoading: Boolean = true) {
-        val row = rowsData.value.firstOrNull { it.id == rowId } ?: return
-        val path = row.path ?: return
-        if (categoryJobs[rowId]?.isActive == true) return
-
-        val existingCards = row.cards.filterIsInstance<LibriaCard>()
-
-        if (showLoading) {
-            updateRow(rowId) {
-                it.copy(
-                    cards = existingCards + LoadingCard("Загрузка аниме"),
-                    loadState = AnimeVostCategoryLoadState.LOADING,
-                )
-            }
+    private suspend fun showCategories(navigation: NavigationData) {
+        val definitions = navigation.toCategoryDefinitions()
+        check(definitions.isNotEmpty()) { "Список категорий пуст" }
+        categoryWorker?.cancelAndJoin()
+        categoryWorker = null
+        pendingRows.clear()
+        activeRowId = null
+        rowsData.value = definitions.mapIndexed { index, definition ->
+            val row = AnimeVostCategoryRowState(
+                id = CATEGORY_ROW_ID_BASE + index + 1,
+                title = definition.title,
+                path = definition.path,
+                cards = listOf(LinkCard("Открыть категорию")),
+                loadState = AnimeVostCategoryLoadState.NOT_LOADED,
+            )
+            source.getCachedCatalog(definition.path)?.let { row.withPage(it) } ?: row
         }
-        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
-            categoryLoadSemaphore.withPermit {
-                try {
-                    val result = withContext(Dispatchers.IO) {
-                        repository.getCatalog(page = page, path = path)
-                    }
-                    val newCards = result.items.map { it.toAnimeVostCard() }
-                    val mergedCards = (if (page <= 1) newCards else existingCards + newCards)
-                        .distinctBy { it.getId() }
+        pendingRows.addAll(rowsData.value.toInitialCategoryLoadQueue())
+        startWorker()
+    }
+
+    private fun startWorker() {
+        if (categoryWorker?.isActive == true) return
+        categoryWorker = viewModelScope.launch {
+            while (pendingRows.isNotEmpty()) {
+                currentCoroutineContext().ensureActive()
+                val rowId = pendingRows.removeAt(0)
+                val row = rowsData.value.firstOrNull { it.id == rowId } ?: continue
+                val path = row.path ?: continue
+                activeRowId = rowId
+                if (row.cards.none { it is LibriaCard }) {
                     updateRow(rowId) {
                         it.copy(
-                            cards = when {
-                                mergedCards.isEmpty() -> listOf(
-                                    LoadingCard("Нет данных", "Нажмите, чтобы повторить")
-                                )
-                                result.currentPage < result.totalPages -> mergedCards +
-                                    LinkCard("Загрузить еще")
-                                else -> mergedCards
-                            },
-                            loadState = if (mergedCards.isEmpty()) {
-                                AnimeVostCategoryLoadState.EMPTY
-                            } else {
-                                AnimeVostCategoryLoadState.LOADED
-                            },
-                            currentPage = result.currentPage,
-                            totalPages = result.totalPages,
+                            cards = listOf(LoadingCard("Загрузка аниме"), LinkCard("Открыть категорию")),
+                            loadState = AnimeVostCategoryLoadState.LOADING,
                         )
                     }
-                } catch (error: Throwable) {
-                    if (error is CancellationException) throw error
+                }
+                try {
+                    val page = source.getCatalog(path = path)
+                    updateRow(rowId) { it.withPage(page) }
+                } catch (error: Exception) {
+                    // A nested request timeout must not strand this row or stop the queue.
+                    currentCoroutineContext().ensureActive()
                     Timber.e(error)
                     updateRow(rowId) {
                         it.copy(
-                            cards = existingCards +
-                                LoadingCard(
-                                    title = "Повторить загрузку",
-                                    description = "Не удалось загрузить категорию: ${error.message}",
-                                    isError = true,
-                                ),
+                            cards = it.cards.filterIsInstance<LibriaCard>() +
+                                errorCard(error) + LinkCard("Открыть категорию"),
                             loadState = AnimeVostCategoryLoadState.ERROR,
                         )
                     }
+                } finally {
+                    activeRowId = null
                 }
             }
         }
-        categoryJobs[rowId] = job
-        job.invokeOnCompletion {
-            categoryJobs.remove(rowId, job)
-        }
-        job.start()
     }
 
-    private fun updateRow(
-        rowId: Long,
-        transform: (AnimeVostCategoryRowState) -> AnimeVostCategoryRowState,
-    ) {
-        rowsData.value = rowsData.value.map { row ->
-            if (row.id == rowId) transform(row) else row
-        }
+    private fun navigationRow(card: CardItem, state: AnimeVostCategoryLoadState = AnimeVostCategoryLoadState.LOADING) =
+        AnimeVostCategoryRowState(NAVIGATION_ROW_ID, "Каталог AnimeVost", null, listOf(card), state)
+
+    private fun errorCard(error: Exception) = LoadingCard(
+        "Повторить загрузку", "Не удалось загрузить: ${error.message}", isError = true,
+    )
+
+    private fun updateRow(rowId: Long, transform: (AnimeVostCategoryRowState) -> AnimeVostCategoryRowState) {
+        rowsData.value = rowsData.value.map { if (it.id == rowId) transform(it) else it }
     }
 }
 
-internal fun AnimeVostCategoryRowState.shouldLoadOnSelection(activeRowIds: Set<Long>): Boolean =
-    path != null && (
-        loadState == AnimeVostCategoryLoadState.NOT_LOADED ||
-            (loadState == AnimeVostCategoryLoadState.LOADING && id !in activeRowIds)
-        )
+internal fun AnimeVostCategoryRowState.withPage(page: AnimePage): AnimeVostCategoryRowState {
+    val anime = page.items.map { it.toAnimeVostCard() }.distinctBy { it.getId() }
+    return copy(
+        // Always open the complete category, including single-page categories.
+        cards = anime + LinkCard(if (anime.isEmpty()) "Нет аниме — открыть категорию" else "Загрузить ещё"),
+        loadState = if (anime.isEmpty()) AnimeVostCategoryLoadState.EMPTY else AnimeVostCategoryLoadState.LOADED,
+        currentPage = page.currentPage,
+        totalPages = page.totalPages,
+    )
+}
+
+internal fun AnimeVostCategoryRowState.toCatalogCard(): LibriaCard? = path?.let {
+    LibriaCard(title, "", "", LibriaCard.Type.AnimeVostCatalog(it, title))
+}
 
 internal fun List<AnimeVostCategoryRowState>.toInitialCategoryLoadQueue(): List<Long> =
     filter { it.path != null }.map { it.id }
