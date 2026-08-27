@@ -60,6 +60,8 @@ class VideoPlayerGlue(
         fun onQualityClick()
         fun onSpeedClick()
         fun onEpisodesClick()
+        fun onSourceClick() {}
+        fun onVoiceClick() {}
     }
 
     interface PlaybackListener {
@@ -79,6 +81,13 @@ class VideoPlayerGlue(
     private val speedAction by lazy { SpeedAction(context) }
     private val episodesAction by lazy { EpisodesAction(context) }
     private val resizeAction by lazy { ResizeAction(context) }
+    private val sourceAction by lazy { Action(-2001L, "Источник").apply { icon = androidx.core.content.ContextCompat.getDrawable(context, android.R.drawable.ic_menu_share) } }
+    private val voiceAction by lazy { Action(-2002L, "Озвучка").apply { icon = androidx.core.content.ContextCompat.getDrawable(context, android.R.drawable.ic_btn_speak_now) } }
+
+    fun enableSourceSelection() {
+        val adapter = controlsRow?.secondaryActionsAdapter as? ArrayObjectAdapter ?: return
+        if (adapter.indexOf(sourceAction) < 0) { adapter.add(0, sourceAction); adapter.add(1, voiceAction) }
+    }
 
     override fun onUpdateProgress() {
         super.onUpdateProgress()
@@ -115,11 +124,13 @@ class VideoPlayerGlue(
     }
 
     private fun shouldDispatchAction(action: Action): Boolean {
-        return action === rewindAction || action === forwardAction || action === qualityAction || action === speedAction || action === episodesAction || action === resizeAction
+        return action === sourceAction || action === voiceAction || action === rewindAction || action === forwardAction || action === qualityAction || action === speedAction || action === episodesAction || action === resizeAction
     }
 
     private fun dispatchAction(action: Action) {
         when {
+            action === sourceAction -> actionListener?.onSourceClick()
+            action === voiceAction -> actionListener?.onVoiceClick()
             action === rewindAction -> rewind()
             action === forwardAction -> fastForward()
             action === qualityAction -> actionListener?.onQualityClick()

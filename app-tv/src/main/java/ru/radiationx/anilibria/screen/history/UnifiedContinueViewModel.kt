@@ -19,6 +19,7 @@ class UnifiedContinueViewModel @Inject constructor(
     private val providerLocalRepository: ProviderLocalRepository,
     private val converter: CardsDataConverter,
     private val cardRouter: LibriaCardRouter,
+    private val unifiedLibrary: ru.radiationx.anilibria.provider.UnifiedLibraryRepository,
 ) : BaseCardsViewModel() {
 
     override val defaultTitle: String = "Продолжить просмотр"
@@ -100,9 +101,9 @@ class UnifiedContinueViewModel @Inject constructor(
                 )
             }
 
-        return (aniLibriaTimed + animeVostTimed + providerTimed)
+        return unifiedLibrary.deduplicate((aniLibriaTimed + animeVostTimed + providerTimed)
             .sortedByDescending { it.timestamp }
-            .map { it.card }
+            .map { it.card })
     }
 
     override fun hasMoreCards(newCards: List<LibriaCard>, allCards: List<LibriaCard>): Boolean = false

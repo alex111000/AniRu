@@ -17,6 +17,12 @@ import ru.radiationx.data.entity.domain.types.ReleaseId
 import ru.radiationx.quill.QuillExtra
 import timber.log.Timber
 import javax.inject.Inject
+import com.github.terrakok.cicerone.Router
+import ru.radiationx.anilibria.provider.UnifiedCatalogRepository
+import ru.radiationx.anilibria.provider.UnifiedLibraryRepository
+import ru.radiationx.anilibria.screen.ProviderPlayerScreen
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 data class ProviderDetailExtra(
     val providerId: String,
@@ -28,6 +34,9 @@ class ProviderDetailsViewModel @Inject constructor(
     private val registry: ProviderRegistry,
     private val localRepository: ProviderLocalRepository,
     private val guidedRouter: GuidedRouter,
+    private val catalog: UnifiedCatalogRepository,
+    private val library: UnifiedLibraryRepository,
+    private val router: Router,
 ) : LifecycleViewModel() {
 
     val detailsData = MutableStateFlow<LibriaDetails?>(null)
@@ -51,19 +60,20 @@ class ProviderDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             loadingData.value = true
             errorData.value = null
-            runCatching { registry.get(providerId).getDetails(extra.animeId) }
+            runCatching { catalog.getDetails(providerId, extra.animeId) }
                 .onSuccess { loaded ->
                     details = loaded
-                    detailsData.value = loaded.toLibriaDetails(localRepository.isFavorite(providerId, loaded.id))
-                    val visible = if (loaded.episodes.size > QUICK_EPISODES_LIMIT) {
-                        loaded.episodes.takeLast(QUICK_EPISODES_LIMIT)
-                    } else loaded.episodes
+                    detailsData.value = loaded.toLibriaDetails(library.favorite(providerId, loaded.id))
+                    val visible = loaded.episodes
+                    val progress = localRepository.getHistory().filter { it.provider == providerId && it.animeId == loaded.id }.associateBy { it.episodeId }
                     episodesData.value = visible.map { episode ->
                         LibriaCard(
-                            title = episode.title,
+                            title = (if (progress[episode.id]?.isCompleted == true) "✓ " else "") + episode.title,
                             description = listOfNotNull(
                                 providerId.uiName,
+                                "Сезон ${episode.season}",
                                 episode.number?.let { "Серия $it" },
+                                progress[episode.id]?.takeIf { !it.isCompleted }?.let { "${it.progressPercent}%" },
                             ).joinToString(" • "),
                             image = episode.thumbnailUrl.ifBlank { loaded.posterUrl },
                             type = LibriaCard.Type.ProviderEpisode(
@@ -71,11 +81,13 @@ class ProviderDetailsViewModel @Inject constructor(
                                 animeId = loaded.id,
                                 episodeId = episode.id,
                                 episodeNumber = episode.number,
+                                directPlay = true,
                             ),
                         )
                     }
                 }
                 .onFailure {
+                    currentCoroutineContext().ensureActive()
                     Timber.e(it)
                     errorData.value = it.message ?: "Не удалось загрузить ${providerId.uiName}"
                 }
@@ -86,42 +98,20 @@ class ProviderDetailsViewModel @Inject constructor(
     fun onPlayClick() {
         val current = details ?: return
         if (current.episodes.isEmpty()) return
-        guidedRouter.open(
-            ProviderEpisodesGuidedScreen(
-                providerId = providerId.wireId,
-                animeId = current.id,
-                currentEpisodeId = null,
-                replacePlayer = false,
-            )
-        )
+        val recent = localRepository.getHistory().firstOrNull { it.provider == providerId && it.animeId == current.id && !it.isCompleted }
+        val episode = current.episodes.firstOrNull { it.id == recent?.episodeId } ?: current.episodes.first()
+        router.navigateTo(ProviderPlayerScreen(providerId.wireId, current.id, episode.id, null))
     }
 
     fun onFavoriteClick() {
         val current = details ?: return
-        val favorite = localRepository.toggleFavorite(
-            ProviderLocalRepository.Favorite(
-                provider = providerId,
-                animeId = current.id,
-                title = current.title,
-                posterUrl = current.posterUrl,
-                extra = current.extra,
-                savedAt = System.currentTimeMillis(),
-            )
-        )
+        val favorite = library.toggleFavorite(current)
         detailsData.value = detailsData.value?.copy(isFavorite = favorite)
     }
 
     fun onCardClick(card: LibriaCard) {
         val type = card.type as? LibriaCard.Type.ProviderEpisode ?: return
-        guidedRouter.open(
-            ProviderSourcesGuidedScreen(
-                providerId = type.providerId,
-                animeId = type.animeId,
-                episodeId = type.episodeId,
-                replacePlayer = false,
-                currentSourceId = null,
-            )
-        )
+        router.navigateTo(ProviderPlayerScreen(type.providerId, type.animeId, type.episodeId, null))
     }
 
     private fun ProviderAnimeDetails.toLibriaDetails(isFavorite: Boolean): LibriaDetails = LibriaDetails(
@@ -132,13 +122,13 @@ class ProviderDetailsViewModel @Inject constructor(
             listOf(provider.uiName, year, genres.joinToString(", ")).filter { it.isNotBlank() }.joinToString(" • ")
         },
         description = description,
-        announce = "Источник: ${provider.uiName}",
+        announce = "Источники: " + (catalog.group(provider, id)?.versions?.map { it.provider.uiName } ?: listOf(provider.uiName)).distinct().joinToString(", "),
         image = posterUrl,
         favoriteCount = "0",
         hasFullHd = false,
         isFavorite = isFavorite,
         hasEpisodes = episodes.isNotEmpty(),
-        hasViewed = false,
+        hasViewed = localRepository.getHistory().any { it.provider == provider && it.animeId == id && !it.isCompleted },
         hasWebPlayer = false,
     )
 

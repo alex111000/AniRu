@@ -84,6 +84,7 @@ private class AnimeVostDetailsViewHolder(
         binding.rowReleaseFavoriteCount.isVisible = false
         binding.rowReleaseHQMarker.isVisible = details.hasFullHd
         binding.rowReleaseActionPlay.isVisible = details.hasEpisodes
+        binding.rowReleaseActionPlay.text = if (details.hasViewed) "Продолжить просмотр" else "Смотреть"
         binding.rowReleaseActionFavorite.isVisible = true
         binding.rowReleaseActionFavorite.text = if (details.isFavorite) {
             "Убрать из избранного"

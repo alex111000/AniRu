@@ -32,8 +32,8 @@ android {
         applicationId = "com.aniru.tv"
         minSdk = libs.versions.tv.min.sdk.version.get().toInt()
         targetSdk = libs.versions.app.target.sdk.version.get().toInt()
-        versionCode = 19
-        versionName = "1.2.7"
+        versionCode = 20
+        versionName = "2.0.0-beta1"
         buildConfigField("String", "BUILD_DATE", "\"${getDateTime()}\"")
     }
 
@@ -74,7 +74,7 @@ android {
         create("rustore") {
             dimension = "type"
             buildConfigField("boolean", "FOR_RUSTORE", "true")
-            versionName = "1.2.7-rustore"
+            versionName = "2.0.0-beta1-rustore"
         }
     }
 }

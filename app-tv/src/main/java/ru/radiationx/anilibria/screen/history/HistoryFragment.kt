@@ -20,6 +20,7 @@ import ru.radiationx.shared_app.di.quillParentViewModel
 class HistoryFragment : RowsSupportFragment() {
 
     companion object {
+        fun newHomeInstance() = HistoryFragment().apply { arguments = Bundle().apply { putBoolean("home", true) } }
         private const val CONTINUE_ROW_ID = 1L
         private const val ANILIBRIA_HISTORY_ROW_ID = 2L
         private const val ANIMEVOST_HISTORY_ROW_ID = 3L
@@ -49,7 +50,8 @@ class HistoryFragment : RowsSupportFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        listOf(continueViewModel, localFavoritesViewModel, aniLibriaHistoryViewModel, animeVostHistoryViewModel, providerHistoryViewModel).forEach {
+        val home = arguments?.getBoolean("home") == true
+        (if (home) listOf(continueViewModel, localFavoritesViewModel) else listOf(continueViewModel, localFavoritesViewModel, aniLibriaHistoryViewModel, animeVostHistoryViewModel, providerHistoryViewModel)).forEach {
             viewLifecycleOwner.lifecycle.addObserver(it)
         }
 
@@ -77,7 +79,7 @@ class HistoryFragment : RowsSupportFragment() {
         }
 
         if (rowsAdapter.size() == 0) {
-            listOf(CONTINUE_ROW_ID, FAVORITES_ROW_ID, ANILIBRIA_HISTORY_ROW_ID, ANIMEVOST_HISTORY_ROW_ID, PROVIDER_HISTORY_ROW_ID).forEach { rowId ->
+            (if (home) listOf(CONTINUE_ROW_ID, FAVORITES_ROW_ID) else listOf(CONTINUE_ROW_ID, FAVORITES_ROW_ID, ANILIBRIA_HISTORY_ROW_ID, ANIMEVOST_HISTORY_ROW_ID, PROVIDER_HISTORY_ROW_ID)).forEach { rowId ->
                 rowsAdapter.add(createCardsRowBy(rowId, rowsAdapter, requireNotNull(getViewModel(rowId))))
             }
         }

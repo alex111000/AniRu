@@ -19,10 +19,10 @@ class MainPagesViewModel @Inject constructor(
     }
 
     fun onCatalogClick() {
-        router.navigateTo(CatalogSourcesGuidedScreen())
+        router.navigateTo(ru.radiationx.anilibria.screen.UnifiedCatalogScreen("SERIES"))
     }
 
     fun onSearchClick() {
-        router.navigateTo(SuggestionsScreen())
+        router.navigateTo(ru.radiationx.anilibria.screen.UnifiedCatalogScreen("SEARCH"))
     }
 }

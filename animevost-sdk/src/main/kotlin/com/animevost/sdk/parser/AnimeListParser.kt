@@ -64,6 +64,8 @@ class AnimeListParser {
             rating = parseRating(story),
             voteCount = parseInt(story.selectFirst("""span[id^="vote-num-id-"]""")?.text()),
             categories = parseCategories(story),
+            year = Regex("Год(?: выхода)?\\s*:?\\s*((?:19|20)\\d{2})", RegexOption.IGNORE_CASE).find(story.text())?.groupValues?.get(1),
+            type = Regex("Тип\\s*:?\\s*(ТВ|TV|OVA|ONA|Фильм|Movie|Полнометражный)", RegexOption.IGNORE_CASE).find(story.text())?.groupValues?.get(1),
         )
     }
 
@@ -97,6 +99,8 @@ class AnimeListParser {
             rating = story?.let(::parseRating),
             voteCount = parseInt(story?.selectFirst("""span[id^="vote-num-id-"]""")?.text()),
             categories = story?.let(::parseCategories).orEmpty(),
+            year = story?.let { Regex("Год(?: выхода)?\\s*:?\\s*((?:19|20)\\d{2})", RegexOption.IGNORE_CASE).find(it.text())?.groupValues?.get(1) },
+            type = story?.let { Regex("Тип\\s*:?\\s*(ТВ|TV|OVA|ONA|Фильм|Movie|Полнометражный)", RegexOption.IGNORE_CASE).find(it.text())?.groupValues?.get(1) },
         )
     }
 

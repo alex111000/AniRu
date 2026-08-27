@@ -17,6 +17,7 @@ class LocalFavoritesViewModel @Inject constructor(
     private val releaseInteractor: ReleaseInteractor,
     private val converter: CardsDataConverter,
     private val cardRouter: LibriaCardRouter,
+    private val unifiedLibrary: ru.radiationx.anilibria.provider.UnifiedLibraryRepository,
 ) : BaseCardsViewModel() {
 
     override val defaultTitle: String = "Избранное"
@@ -46,7 +47,7 @@ class LocalFavoritesViewModel @Inject constructor(
                 type = LibriaCard.Type.Provider(item.provider.wireId, item.animeId),
             )
         }
-        return aniLibria + animeVost + providers
+        return unifiedLibrary.deduplicate(providers + animeVost + aniLibria, favorites = true)
     }
 
     override fun hasMoreCards(newCards: List<LibriaCard>, allCards: List<LibriaCard>): Boolean = false

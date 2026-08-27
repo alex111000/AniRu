@@ -17,6 +17,7 @@ import ru.radiationx.anilibria.provider.StreamType
 import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import ru.radiationx.anilibria.provider.AnimeKind
 
 class SameBandProvider @Inject constructor(
     private val http: ProviderHttpClient,
@@ -54,9 +55,14 @@ class SameBandProvider @Inject constructor(
         return parseCards(html).take(MAX_SEARCH_RESULTS)
     }
 
+    private val nextPages = ConcurrentHashMap<Int, String>()
     override suspend fun browse(page: Int): List<ProviderAnime> {
-        if (page > 1) return emptyList()
-        return parseCards(http.get("$BASE_URL/novinki", cacheControl = "max-age=120"))
+        val url = if (page == 1) "$BASE_URL/novinki" else nextPages[page] ?: return emptyList()
+        val html = http.get(url, cacheControl = "max-age=120")
+        Jsoup.parse(html, BASE_URL).select("a[href]").firstOrNull {
+            it.text().trim() == (page + 1).toString() || it.attr("rel") == "next"
+        }?.absUrl("href")?.takeIf { it.startsWith(BASE_URL) }?.let { nextPages[page + 1] = it }
+        return parseCards(html)
     }
 
     private fun parseCards(html: String): List<ProviderAnime> {
@@ -74,11 +80,19 @@ class SameBandProvider @Inject constructor(
                     title = title,
                     posterUrl = findImageUrl(node, "img.swiper-lazy, img"),
                     extra = displayName,
+                    year = Regex("(?:19|20)\\d{2}").find(node.text())?.value.orEmpty(),
+                    kind = AnimeKind.parse(node.text()),
                 )
             }
             .distinctBy { it.id }
     }
 
+    override suspend fun catalogMetadata(item: ProviderAnime): ProviderAnime {
+        val doc = Jsoup.parse(http.get(normalizeAnimeUrl(item.id)), BASE_URL)
+        val info = doc.select(".info, .details, .fullstory, .col-md-8").text()
+        return item.copy(year = Regex("(?:19|20)\\d{2}").find(info)?.value ?: item.year,
+            kind = AnimeKind.parse(info), genres = doc.select("a[href*=zhanr], a[href*=genre]").map { it.text() })
+    }
     override suspend fun getDetails(animeId: String): ProviderAnimeDetails {
         val now = System.currentTimeMillis()
         detailsCache[animeId]
@@ -105,6 +119,8 @@ class SameBandProvider @Inject constructor(
             title = title,
             description = description,
             posterUrl = poster,
+            year = Regex("(?:19|20)\\d{2}").find(doc.select(".info, .details, .fullstory").text())?.value.orEmpty(),
+            kind = AnimeKind.parse(doc.select(".info, .details, .fullstory").text()),
             extra = "$displayName • ${episodes.size} серий",
             episodes = episodes.mapIndexed { index, parsed ->
                 ProviderEpisode(

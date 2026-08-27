@@ -7,6 +7,10 @@ import ru.radiationx.anilibria.provider.impl.AniLibriaProvider
 import ru.radiationx.anilibria.provider.impl.AnimeVostProvider
 import ru.radiationx.anilibria.provider.impl.SameBandProvider
 import ru.radiationx.anilibria.provider.impl.YummyAnimeProvider
+import ru.radiationx.anilibria.provider.impl.AnimeLibProvider
+import ru.radiationx.anilibria.provider.impl.AnimeGoProvider
+import ru.radiationx.anilibria.provider.impl.DreamCastProvider
+import ru.radiationx.anilibria.provider.impl.HdRezkaProvider
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
@@ -15,6 +19,10 @@ class ProviderRegistry @Inject constructor(
     animeVostProvider: AnimeVostProvider,
     yummyAnimeProvider: YummyAnimeProvider,
     sameBandProvider: SameBandProvider,
+    animeLibProvider: AnimeLibProvider,
+    animeGoProvider: AnimeGoProvider,
+    dreamCastProvider: DreamCastProvider,
+    hdRezkaProvider: HdRezkaProvider,
 ) {
 
     private val providers: Map<ProviderId, AnimeProvider> = listOf(
@@ -22,6 +30,10 @@ class ProviderRegistry @Inject constructor(
         animeVostProvider,
         yummyAnimeProvider,
         sameBandProvider,
+        animeLibProvider,
+        animeGoProvider,
+        dreamCastProvider,
+        hdRezkaProvider,
     ).associateBy { it.id }
 
     private data class HealthCache(val value: Boolean, val checkedAt: Long)
@@ -33,7 +45,7 @@ class ProviderRegistry @Inject constructor(
     fun searchableProviders(): List<AnimeProvider> = providers.values.filter { it.capabilities.search }
 
     fun genericUiProviders(): List<AnimeProvider> = providers.values.filter {
-        it.id == ProviderId.YUMMY_ANIME || it.id == ProviderId.SAMEBAND
+        it.id != ProviderId.ANILIBRIA && it.id != ProviderId.ANIMEVOST
     }
 
     suspend fun searchGenericProviders(query: String): Map<ProviderId, List<ProviderAnime>> = supervisorScope {

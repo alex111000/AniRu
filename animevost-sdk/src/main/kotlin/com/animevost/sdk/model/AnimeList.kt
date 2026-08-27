@@ -19,6 +19,8 @@ data class AnimePreview(
     val rating: Double?,
     val voteCount: Int?,
     val categories: List<AnimeCategory>,
+    val year: String? = null,
+    val type: String? = null,
 )
 
 data class AnimeCategory(

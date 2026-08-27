@@ -24,6 +24,7 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
+import ru.radiationx.anilibria.provider.AnimeKind
 
 /**
  * Native Kotlin port of the useful, public API flow documented by anicli-api.
@@ -31,6 +32,7 @@ import javax.inject.Inject
  */
 class YummyAnimeProvider @Inject constructor(
     private val http: ProviderHttpClient,
+    private val players: EmbeddedPlayerResolver,
 ) : AnimeProvider {
 
     override val id = ProviderId.YUMMY_ANIME
@@ -111,6 +113,8 @@ class YummyAnimeProvider @Inject constructor(
             extra = extra,
             genres = genres,
             episodes = episodes,
+            kind = AnimeKind.parse(type),
+            rating = rating,
         )
         detailsCache[animeId] = DetailsCache(now, details)
         return details
@@ -134,11 +138,14 @@ class YummyAnimeProvider @Inject constructor(
         }.awaitAll().filterNotNull().distinctBy { it.id }
     }
 
+    private var fullCatalog: List<ProviderAnime> = emptyList()
     override suspend fun browse(page: Int): List<ProviderAnime> {
-        if (page > 1) return emptyList()
-        val root = JSONObject(http.get("$API_BASE/anime/catalog", cacheControl = "max-age=120"))
-        val data = root.optJSONObject("response")?.optJSONArray("data") ?: root.optJSONArray("response")
-        return data.orEmptyObjects().mapNotNull { it.toProviderAnime() }.distinctBy { it.id }.take(CATALOG_LIMIT)
+        if (page == 1 || fullCatalog.isEmpty()) {
+            val root = JSONObject(http.get("$API_BASE/anime/catalog", cacheControl = "max-age=120"))
+            val data = root.optJSONObject("response")?.optJSONArray("data") ?: root.optJSONArray("response")
+            fullCatalog = data.orEmptyObjects().mapNotNull { it.toProviderAnime() }.distinctBy { it.id }
+        }
+        return fullCatalog.drop((page - 1) * 60).take(60)
     }
 
     override suspend fun isAvailable(): Boolean = runCatching {
@@ -185,7 +192,7 @@ class YummyAnimeProvider @Inject constructor(
 
         // Generic PlayerJS/direct-media fallback. It intentionally fails closed for
         // obfuscated players instead of passing an iframe URL to Media3.
-        return resolveGenericIframe(url, raw.dubbing)
+        return players.resolve(url, YUMMY_SITE, raw.dubbing)
     }
 
     private suspend fun resolveCdnVideoHub(
@@ -214,9 +221,7 @@ class YummyAnimeProvider @Inject constructor(
         val item = playlist.optJSONArray("items").orEmptyObjects().firstOrNull { candidate ->
             candidate.optInt("episode", -1) == requestedEpisode &&
                 candidate.optString("voiceStudio").equals(dubbingCode, ignoreCase = true)
-        } ?: playlist.optJSONArray("items").orEmptyObjects().firstOrNull { candidate ->
-            candidate.optInt("episode", -1) == requestedEpisode
-        } ?: return emptyList()
+        } ?: return emptyList() // Never silently substitute another dubbing.
         val vkId = item.optString("vkId")
         if (vkId.isBlank()) return emptyList()
         return loadCvhVideo(vkId, iframeUrl, fallbackDubbing)
@@ -323,6 +328,9 @@ class YummyAnimeProvider @Inject constructor(
             posterUrl = poster(this),
             year = year,
             extra = listOf(displayName, year, type, status).filter { it.isNotBlank() }.joinToString(" • "),
+            kind = AnimeKind.parse(type),
+            genres = optJSONArray("genres").orEmptyObjects().map { it.optString("title") },
+            rating = optJSONObject("rating")?.optDouble("average")?.takeIf { it.isFinite() && it > 0 },
         )
     }
 

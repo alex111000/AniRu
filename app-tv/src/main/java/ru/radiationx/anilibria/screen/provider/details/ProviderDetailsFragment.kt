@@ -86,7 +86,9 @@ class ProviderDetailsFragment : RowsSupportFragment() {
         subscribeTo(viewModel.episodesData) { episodesAdapter.setItems(it, CardDiffCallback) }
         subscribeTo(viewModel.errorData) { message ->
             message?.takeIf { it.isNotBlank() }?.let {
-                Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
+                android.app.AlertDialog.Builder(requireContext()).setTitle("Не удалось загрузить аниме")
+                    .setMessage("Источник не ответил. Можно повторить загрузку; остальные разделы приложения доступны.")
+                    .setPositiveButton("Повторить") { _, _ -> viewModel.retry() }.setNegativeButton("Закрыть", null).show()
             }
         }
     }

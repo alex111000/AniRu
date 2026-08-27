@@ -32,6 +32,9 @@ class ProviderLocalRepository @Inject constructor(
         val positionMs: Long,
         val durationMs: Long,
         val watchedAt: Long,
+        val season: Int = 1,
+        val special: Boolean = false,
+        val numberLabel: String = episodeNumber?.toString().orEmpty(),
     ) {
         val isCompleted: Boolean
             get() = durationMs > 0 && positionMs >= durationMs - COMPLETION_GUARD_MS
@@ -107,6 +110,9 @@ class ProviderLocalRepository @Inject constructor(
             positionMs = obj.optLong("positionMs", 0L),
             durationMs = obj.optLong("durationMs", 0L),
             watchedAt = obj.optLong("watchedAt", 0L),
+            season = obj.optInt("season", 1),
+            special = obj.optBoolean("special", false),
+            numberLabel = obj.optString("numberLabel", obj.optString("episodeNumber")),
         )
     }.sortedByDescending { it.watchedAt }
 
@@ -140,6 +146,9 @@ class ProviderLocalRepository @Inject constructor(
                 put("positionMs", item.positionMs)
                 put("durationMs", item.durationMs)
                 put("watchedAt", item.watchedAt)
+                put("season", item.season)
+                put("special", item.special)
+                put("numberLabel", item.numberLabel)
             })
         }
         prefs.edit().putString(KEY_HISTORY, array.toString()).apply()

@@ -18,6 +18,8 @@ interface AnimeProvider {
     suspend fun getSources(animeId: String, episodeId: String): List<ProviderSource>
 
     suspend fun browse(page: Int = 1): List<ProviderAnime> = emptyList()
+    /** Optional HTML metadata enrichment, without loading episodes or resolving video URLs. */
+    suspend fun catalogMetadata(item: ProviderAnime): ProviderAnime = item
 
     /**
      * Lightweight availability probe. It must never throw to callers.
@@ -30,6 +32,10 @@ enum class ProviderId(val wireId: String, val uiName: String) {
     ANIMEVOST("animevost", "AnimeVost"),
     YUMMY_ANIME("yummy_anime", "YummyAnime"),
     SAMEBAND("sameband", "SameBand"),
+    ANILIB("anilib", "AnimeLib"),
+    ANIMEGO("animego", "AnimeGo"),
+    DREAMCAST("dreamcast", "DreamersCast"),
+    HDREZKA("hdrezka", "HDRezka · аниме"),
     ;
 
     companion object {
@@ -54,6 +60,11 @@ data class ProviderAnime(
     val posterUrl: String = "",
     val year: String = "",
     val extra: String = "",
+    val kind: AnimeKind = AnimeKind.UNKNOWN,
+    val genres: List<String> = emptyList(),
+    val rating: Double? = null,
+    val addedAt: Long = 0L,
+    val externalIds: Map<String, String> = emptyMap(),
 )
 
 data class ProviderAnimeDetails(
@@ -67,6 +78,10 @@ data class ProviderAnimeDetails(
     val extra: String = "",
     val genres: List<String> = emptyList(),
     val episodes: List<ProviderEpisode> = emptyList(),
+    val kind: AnimeKind = AnimeKind.UNKNOWN,
+    val rating: Double? = null,
+    val addedAt: Long = 0L,
+    val externalIds: Map<String, String> = emptyMap(),
 )
 
 data class ProviderEpisode(
@@ -74,6 +89,9 @@ data class ProviderEpisode(
     val number: Int?,
     val title: String,
     val thumbnailUrl: String = "",
+    val season: Int = 1,
+    val special: Boolean = false,
+    val numberLabel: String = number?.toString().orEmpty(),
 )
 
 data class ProviderSource(

@@ -58,6 +58,11 @@ class ProviderDetailsScreen(
         ProviderDetailsFragment.newInstance(providerId, animeId)
 }
 
+class UnifiedCatalogScreen(private val mode: String) : FragmentScreen {
+    override fun createFragment(factory: FragmentFactory): Fragment =
+        ru.radiationx.anilibria.screen.provider.catalog.UnifiedCatalogFragment.newInstance(mode)
+}
+
 class ProviderPlayerScreen(
     private val providerId: String,
     private val animeId: String,
@@ -65,7 +70,7 @@ class ProviderPlayerScreen(
     private val sourceId: String?,
 ) : FragmentScreen {
     override fun createFragment(factory: FragmentFactory): Fragment =
-        ProviderPlayerFragment.newInstance(providerId, animeId, episodeId, sourceId)
+        ru.radiationx.anilibria.screen.provider.player.UnifiedPlayerFragment.newInstance(providerId, animeId, episodeId, sourceId)
 }
 
 class ProviderCatalogScreen(

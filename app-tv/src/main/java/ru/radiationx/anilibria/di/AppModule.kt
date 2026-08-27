@@ -18,6 +18,12 @@ import ru.radiationx.anilibria.provider.impl.AniLibriaProvider
 import ru.radiationx.anilibria.provider.impl.AnimeVostProvider
 import ru.radiationx.anilibria.provider.impl.SameBandProvider
 import ru.radiationx.anilibria.provider.impl.YummyAnimeProvider
+import ru.radiationx.anilibria.provider.impl.AnimeLibProvider
+import ru.radiationx.anilibria.provider.impl.AnimeGoProvider
+import ru.radiationx.anilibria.provider.impl.DreamCastProvider
+import ru.radiationx.anilibria.provider.impl.HdRezkaProvider
+import ru.radiationx.anilibria.provider.impl.EmbeddedPlayerResolver
+import ru.radiationx.anilibria.provider.UnifiedCatalogRepository
 import ru.radiationx.data.SharedBuildConfig
 import ru.radiationx.data.analytics.AnalyticsErrorReporter
 import ru.radiationx.data.analytics.AnalyticsSender
@@ -48,11 +54,19 @@ class AppModule(context: Context) : QuillModule() {
         single<LocalFavoritesRepository>()
         single<UnifiedSearchRepository>()
         single<ProviderHttpClient>()
+        single<EmbeddedPlayerResolver>()
+        single<AnimeLibProvider>()
+        single<AnimeGoProvider>()
+        single<DreamCastProvider>()
+        single<HdRezkaProvider>()
         single<AniLibriaProvider>()
         single<AnimeVostProvider>()
         single<YummyAnimeProvider>()
         single<SameBandProvider>()
         single<ProviderRegistry>()
+        single<UnifiedCatalogRepository>()
+        single<ru.radiationx.anilibria.provider.UnifiedLibraryRepository>()
+        single<ru.radiationx.anilibria.provider.PlaybackResolver>()
         single<ProviderLocalRepository>()
 
         instance {

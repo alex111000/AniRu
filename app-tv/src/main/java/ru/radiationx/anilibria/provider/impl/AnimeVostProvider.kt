@@ -11,6 +11,8 @@ import ru.radiationx.anilibria.provider.ProviderSource
 import ru.radiationx.anilibria.provider.ProviderStream
 import ru.radiationx.anilibria.provider.StreamType
 import javax.inject.Inject
+import ru.radiationx.anilibria.provider.AnimeKind
+import ru.radiationx.anilibria.provider.parseProviderDate
 
 class AnimeVostProvider @Inject constructor(
     private val repository: AnimeVostRepository,
@@ -23,6 +25,7 @@ class AnimeVostProvider @Inject constructor(
         details = true,
         playback = true,
         multipleVoices = false,
+        browse = true,
     )
 
     override suspend fun search(query: String): List<ProviderAnime> {
@@ -36,6 +39,9 @@ class AnimeVostProvider @Inject constructor(
                         title = item.title,
                         originalTitle = item.originalTitle.orEmpty(),
                         posterUrl = item.posterUrl.orEmpty(),
+                        year = item.year.orEmpty(),
+                        kind = AnimeKind.parse(item.type.orEmpty()),
+                        rating = item.rating?.times(2),
                         extra = buildString {
                             append(displayName)
                             item.episodeInfo?.takeIf { it.isNotBlank() }?.let { append(" • ").append(it) }
@@ -47,6 +53,15 @@ class AnimeVostProvider @Inject constructor(
             }
         }
         return result.distinctBy { it.id }
+    }
+
+    override suspend fun browse(page: Int): List<ProviderAnime> = repository.getCatalog(page = page).items.map { item ->
+        val categories = item.categories.map { it.title }
+        ProviderAnime(id, item.url, item.title, item.originalTitle.orEmpty(), posterUrl = item.posterUrl.orEmpty(),
+            year = item.year ?: categories.firstOrNull { it.matches(Regex("(?:19|20)\\d{2}")) }.orEmpty(),
+            kind = AnimeKind.parse(item.type ?: categories.joinToString(" ")),
+            genres = categories.filterNot { it.matches(Regex("(?:19|20)\\d{2}")) || AnimeKind.parse(it) != AnimeKind.UNKNOWN },
+            rating = item.rating?.times(2), addedAt = parseProviderDate(item.publishedDate.orEmpty()))
     }
 
     override suspend fun getDetails(animeId: String): ProviderAnimeDetails {
@@ -68,6 +83,9 @@ class AnimeVostProvider @Inject constructor(
                 details.episodes.takeIf { it.isNotEmpty() }?.let { "Серий: ${it.size}" },
             ).joinToString(" • "),
             genres = details.genres,
+            kind = AnimeKind.parse(details.type.orEmpty()),
+            rating = details.rating?.times(2),
+            addedAt = parseProviderDate(details.publishedDate.orEmpty()),
             episodes = details.episodes.mapIndexed { index, episode ->
                 ProviderEpisode(
                     id = episode.videoId,
