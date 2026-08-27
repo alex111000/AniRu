@@ -3,6 +3,7 @@ package ru.radiationx.anilibria.screen.provider.catalog
 import android.app.AlertDialog
 import android.graphics.Color
 import android.os.Bundle
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -15,6 +16,7 @@ import com.github.terrakok.cicerone.Router
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import ru.radiationx.anilibria.common.CardDiffCallback
+import ru.radiationx.anilibria.R
 import ru.radiationx.anilibria.provider.*
 import ru.radiationx.anilibria.screen.ProviderDetailsScreen
 import ru.radiationx.quill.get
@@ -34,6 +36,7 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
     override fun getMainFragmentAdapter(): BrowseSupportFragment.MainFragmentAdapter<*> = browseAdapter
     private var grid: VerticalGridView? = null
     private var label: TextView? = null
+    private var moreButton: Button? = null
     private var cards: ArrayObjectAdapter? = null
     private var sourceItems = emptyList<UnifiedAnime>()
     private var genre: String? = null
@@ -47,7 +50,7 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, state: Bundle?): View {
         return LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(72), dp(20), 0)
+            setPadding(dp(24), dp(24), dp(20), 0)
             val controls = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
             fun button(text: String, click: () -> Unit) {
                 controls.addView(Button(context).apply { this.text = text; textSize = 12f; isAllCaps = false; setOnClickListener { click() } },
@@ -61,7 +64,7 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
             addView(controls)
             label = TextView(context).apply { setTextColor(Color.LTGRAY); textSize = 13f; setPadding(0, dp(6), 0, dp(6)) }.also { addView(it) }
             val adapter = ArrayObjectAdapter(object : Presenter() {
-                override fun onCreateViewHolder(parent: ViewGroup): ViewHolder = ViewHolder(ImageCardView(parent.context).apply {
+                override fun onCreateViewHolder(parent: ViewGroup): ViewHolder = ViewHolder(ImageCardView(ContextThemeWrapper(parent.context, R.style.AniRuCatalogThemeOverlay)).apply {
                     isFocusable = true; isFocusableInTouchMode = true
                     val width = if (resources.configuration.screenWidthDp >= 960) 140 else 116
                     setMainImageDimensions(dp(width), dp((width * 1.45).toInt()))
@@ -73,7 +76,7 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
                         titleText = anime.primary.title
                         contentText = listOf(anime.year.takeIf { it > 0 }?.toString().orEmpty(), "Источников: ${anime.versions.size}").filter { it.isNotBlank() }.joinToString(" • ")
                         mainImageView?.showImageUrl(anime.versions.firstOrNull { it.posterUrl.isNotBlank() }?.posterUrl.orEmpty())
-                        contentDescription = titleText
+                        contentDescription = anime.primary.title
                     }
                 }
                 override fun onUnbindViewHolder(holder: ViewHolder) { (holder.view as ImageCardView).mainImage = null }
@@ -102,15 +105,24 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
                     if (fitting != columns) { columns = fitting; setNumColumns(columns) }
                 }
             }.also { addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)) }
-            addView(Button(context).apply {
+            moreButton = Button(context).apply {
                 text = "Показать ещё"; isAllCaps = false
-                setOnClickListener { count += 60; render(); grid?.requestFocus() }
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)))
+                visibility = View.GONE
+                setOnClickListener {
+                    val firstNew = count
+                    count += 60; render(); grid?.requestFocus()
+                    grid?.setSelectedPositionSmooth(firstNew.coerceAtMost((cards?.size() ?: 1) - 1))
+                }
+            }.also { addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42))) }
         }
     }
 
     override fun onViewCreated(view: View, state: Bundle?) {
         super.onViewCreated(view, state)
+        browseAdapter.fragmentHost?.apply {
+            notifyViewCreated(browseAdapter)
+            showTitleView(false)
+        }
         genre = state?.getString("genre")
         year = state?.getInt("year")?.takeIf { it > 0 }
         order = state?.getString("order")?.let { runCatching { CatalogOrder.valueOf(it) }.getOrNull() } ?: CatalogOrder.ADDED
@@ -120,7 +132,7 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
             if (query.isNotBlank()) search(query) else label?.text = "Введите название аниме — поиск по всем включённым источникам"
         } else viewLifecycleOwner.lifecycleScope.launch { catalog.items.collect { sourceItems = it; render() } }
         viewLifecycleOwner.lifecycleScope.launch { catalog.status.collect { if (mode != "SEARCH") render() } }
-        browseAdapter.fragmentHost?.notifyDataReady(browseAdapter)
+        browseAdapter.fragmentHost?.apply { showTitleView(false); notifyDataReady(browseAdapter) }
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("genre", genre); outState.putInt("year", year ?: 0)
@@ -135,9 +147,10 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
             override fun areItemsTheSame(oldItem: UnifiedAnime, newItem: UnifiedAnime) = oldItem.key == newItem.key
             override fun areContentsTheSame(oldItem: UnifiedAnime, newItem: UnifiedAnime) = oldItem == newItem
         })
+        moreButton?.visibility = if (filtered.size > count) View.VISIBLE else View.GONE
         label?.text = "${if (mode == "MOVIE") "Фильмы" else if (mode == "SEARCH") "Поиск: $query" else "Сериалы"} · ${filtered.size} · ${genre ?: "Все жанры"} · ${year ?: "Все годы"} · ${order.label}\n" +
             if (mode == "SEARCH") "Результаты появляются по мере ответа источников" else catalog.status.value
-        browseAdapter.fragmentHost?.notifyDataReady(browseAdapter)
+        browseAdapter.fragmentHost?.apply { showTitleView(false); notifyDataReady(browseAdapter) }
     }
     private fun chooseGenre() {
         val values = listOf("Все жанры") + sourceItems.flatMap { it.genres }.filter { it.isNotBlank() }.distinct().sorted()
@@ -162,7 +175,7 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
         searchJob = viewLifecycleOwner.lifecycleScope.launch { catalog.search(query) { sourceItems = it; render() } }
     }
     override fun onDestroyView() {
-        searchJob?.cancel(); grid?.adapter = null; grid = null; cards = null; label = null
+        searchJob?.cancel(); grid?.adapter = null; grid = null; cards = null; label = null; moreButton = null
         super.onDestroyView()
     }
 }

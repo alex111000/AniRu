@@ -5,6 +5,7 @@
 - Main: Continue watching and Favorites. Movies and Series are shared poster grids.
 - Cold launch no longer waits for the legacy AniLibria configuration endpoint. Local library and other providers remain reachable when that endpoint is offline.
 - Global anime search. Genre/year filters. Default order: added date descending, then year descending.
+- Grid pagination appears only when more indexed items exist; selecting it reveals and scrolls to the next results instead of leaving an inactive button on screen.
 - Conservative deduplication: known external identifiers, or exact alternate names + matching year/type. Unknown metadata is not enough to merge. Different seasons, remakes and films stay separate.
 - Eight native provider adapters: AniLibria/AniLiberty, AnimeVost, YummyAnime, SameBand, AnimeLib, AnimeGo, DreamersCast, HDRezka (anime only).
 - Sequential paged catalog synchronization and on-disk metadata cache. Partial results stay usable when a provider fails. Source-reported addition dates are preferred; otherwise first indexing time is used, not release year masquerading as an addition date.

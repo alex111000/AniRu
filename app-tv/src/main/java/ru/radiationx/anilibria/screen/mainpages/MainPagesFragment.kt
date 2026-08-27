@@ -1,6 +1,5 @@
 package ru.radiationx.anilibria.screen.mainpages
 
-import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -18,7 +17,6 @@ import androidx.transition.TransitionManager
 import ru.radiationx.anilibria.R
 import ru.radiationx.anilibria.ui.widget.BrowseTitleView
 import ru.radiationx.quill.viewModel
-import ru.radiationx.shared.ktx.android.getCompatColor
 import ru.radiationx.shared.ktx.android.getCompatDrawable
 import ru.radiationx.shared.ktx.android.subscribeTo
 
@@ -120,7 +118,7 @@ class MainPagesFragment : BrowseSupportFragment() {
         titleView?.also { tview ->
             ImageViewCompat.setImageTintList(
                 tview.findViewById(R.id.title_badge),
-                ColorStateList.valueOf(tview.context.getCompatColor(R.color.dark_contrast_icon))
+                null // AniRu has a full-color bitmap badge, not a monochrome glyph.
             )
         }
     }

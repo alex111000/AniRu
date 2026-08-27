@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Legacy rows deliberately use image-only cards. Unified grids need visible titles. -->
+    <style name="AniRuCatalogThemeOverlay" parent="">
+        <item name="imageCardViewStyle">@style/AniRuCatalogCard</item>
+    </style>
+
+    <style name="AniRuCatalogCard" parent="Widget.Leanback.ImageCardViewStyle">
+        <item name="cardType">infoUnder</item>
+        <item name="infoVisibility">always</item>
+        <item name="lbImageCardViewType">Title|Content</item>
+        <item name="cardBackground">@color/dark_cardBackground</item>
+    </style>
+</resources>

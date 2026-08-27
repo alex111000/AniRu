@@ -58,6 +58,10 @@ try:
             "originalTitle": title, "description": "Offline CI fixture", "posterUrl": "", "year": "2024",
             "extra": "", "kind": kind, "genres": ["Тест"], "rating": 8.0, "addedAt": 1,
             "externalIds": {}}, "firstSeen": 1})
+    for number in range(1, 65):
+        entry = json.loads(json.dumps(entries[0]))
+        entry["anime"].update(id=str(900002 + number), title=f"UI test movie {number}", originalTitle=f"UI test movie {number}")
+        entries.append(entry)
     fixture = json.dumps({"entries": entries, "batchTime": 1}).encode()
     adb("shell", "run-as", PACKAGE, "mkdir", "-p", "files")
     subprocess.run(["adb", "shell", "run-as", PACKAGE, "sh", "-c", "'cat > files/unified-catalog-v2.json'"], input=fixture, check=True, timeout=20)
@@ -82,13 +86,20 @@ try:
         assert tap(matching[0])
         time.sleep(1)
         screenshot(filename + "-opening", dump())
+        adb("shell", "input", "keyevent", "KEYCODE_DPAD_RIGHT")
         raw = wait_for(lambda ns: any(n.get("text") == fixture_title or n.get("content-desc") == fixture_title for n in ns))
         screenshot(filename, raw)
         assert any(n.get("text") == "Сортировка" for n in ET.fromstring(raw).iter("node"))
+        if name == "Фильмы":
+            more = [n for n in ET.fromstring(raw).iter("node") if n.get("text") == "Показать ещё"]
+            assert more and tap(more[0]), "Pagination control missing for the 65-movie fixture"
+            raw = wait_for(lambda ns: any(n.get("content-desc") == "UI test movie 60" for n in ns))
+            assert not any(n.get("text") == "Показать ещё" for n in ET.fromstring(raw).iter("node")), "Pagination must disappear when all cached results are shown"
+            screenshot(filename + "-more", raw)
         # Exercise remote focus separately from touch navigation.
         for key in ["KEYCODE_DPAD_RIGHT", "KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_LEFT"]:
             adb("shell", "input", "keyevent", key)
-    print("PASS: cold launch, cached Movie/Series grids, filters and D-pad input")
+    print("PASS: cold launch, cached Movie/Series grids, pagination, filters and D-pad input")
 finally:
     try:
         screenshot("04-final-state", dump())
