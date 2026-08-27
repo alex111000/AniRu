@@ -47,11 +47,13 @@ class UnifiedCatalogRepository @Inject constructor(context: Context, private val
             try {
                 mutex.withLock {
                     if (!initialized) {
-                        runCatching { gson.fromJson(file.openRead().bufferedReader().use { it.readText() }, Snapshot::class.java) }
-                            .getOrNull()?.let { saved ->
+                        runCatching {
+                            val saved = gson.fromJson(file.openRead().bufferedReader().use { it.readText() }, Snapshot::class.java)
+                            if (saved != null) {
                                 saved.entries.forEach { entries[it.anime.reference] = it }
                                 batchTime = saved.batchTime
                             }
+                        }.onFailure { entries.clear() }
                         initialized = true
                         publish()
                     }
@@ -68,10 +70,9 @@ class UnifiedCatalogRepository @Inject constructor(context: Context, private val
                         try {
                             val result = withTimeoutOrNull(7_000L) { provider.browse(page) }
                                 ?: throw java.io.IOException("Время ожидания истекло")
-                            val added = mutex.withLock {
-                                val count = result.count { it.reference !in entries }
+                            mutex.withLock {
                                 result.forEach { put(it) }
-                                publish(); persist(); count
+                                publish(); persist()
                             }
                             pages[provider.id] = page + 1
                             val repeated = !seenPages.getOrPut(provider.id) { mutableSetOf() }.add(result.map { it.id })
@@ -133,12 +134,12 @@ class UnifiedCatalogRepository @Inject constructor(context: Context, private val
             .ordered(CatalogOrder.ADDED)
     }
 
-    private fun persist() {
+    private fun persist() = runCatching {
         val stream = file.startWrite()
         try {
             stream.write(gson.toJson(Snapshot(entries.values.toList(), batchTime)).toByteArray(Charsets.UTF_8))
             file.finishWrite(stream)
-        } catch (error: Exception) { file.failWrite(stream); throw error }
+        } catch (error: Exception) { file.failWrite(stream) }
     }
 
     fun group(provider: ProviderId, id: String): UnifiedAnime? = items.value.firstOrNull { group ->
@@ -148,8 +149,12 @@ class UnifiedCatalogRepository @Inject constructor(context: Context, private val
     suspend fun getDetails(provider: ProviderId, id: String): ProviderAnimeDetails = withContext(Dispatchers.IO) {
         val key = "${provider.wireId}|$id"
         mutex.withLock { details[key]?.takeIf { System.currentTimeMillis() - it.first < 300_000 }?.let { return@withContext it.second } }
-        val result = withTimeoutOrNull(15_000L) { registry.get(provider).getDetails(id) }
+        val raw = withTimeoutOrNull(15_000L) { registry.get(provider).getDetails(id) }
             ?: throw java.io.IOException("Источник не ответил. Повторите или выберите другой источник.")
+        val prior = mutex.withLock { entries[key]?.anime }
+        val result = raw.copy(kind = raw.kind.takeUnless { it == AnimeKind.UNKNOWN } ?: prior?.kind ?: AnimeKind.UNKNOWN,
+            year = raw.year.ifBlank { prior?.year.orEmpty() }, originalTitle = raw.originalTitle.ifBlank { prior?.originalTitle.orEmpty() },
+            genres = raw.genres.ifEmpty { prior?.genres.orEmpty() }, externalIds = raw.externalIds.ifEmpty { prior?.externalIds.orEmpty() })
         mutex.withLock {
             details[key] = System.currentTimeMillis() to result
             put(result.asAnime()); publish(); persist()

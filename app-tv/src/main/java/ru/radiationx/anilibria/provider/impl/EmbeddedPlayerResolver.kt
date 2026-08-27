@@ -52,6 +52,8 @@ class EmbeddedPlayerResolver @Inject constructor(private val http: ProviderHttpC
             }.distinctBy { it.stableKey }
         }
         if (html.contains("vInfo.hash") && html.contains("vInfo.id")) return kodik(url, html, voice)
+        val host = java.net.URI(url).host.orEmpty()
+        if (host != "video.sibnet.ru" && host != "csst.online") return emptyList()
         val clean = html.replace("\\/", "/").replace("\\u002F", "/")
         val result = mutableListOf<ProviderStream>()
         Regex("(?:file|src)\\s*[:=]\\s*[\"']([^\"']+)[\"']").findAll(clean).forEach {
@@ -60,9 +62,7 @@ class EmbeddedPlayerResolver @Inject constructor(private val http: ProviderHttpC
         Regex("[\"'](/v/[^\"']+\\.mp4)[\"']").find(clean)?.let {
             mediaStream(it.groupValues[1], url, voice)?.let(result::add)
         }
-        Regex("https?://[^\\s\"'<>]+\\.(?:m3u8|mpd|mp4)(?:\\?[^\\s\"'<>]*)?").findAll(clean).forEach {
-            mediaStream(it.value, url, voice)?.let(result::add)
-        }
+        doc.select("video > source[src]").forEach { mediaStream(it.absUrl("src"), url, voice)?.let(result::add) }
         return result.distinctBy { it.stableKey }
     }
 

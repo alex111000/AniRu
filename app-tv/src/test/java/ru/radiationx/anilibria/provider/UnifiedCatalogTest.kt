@@ -55,10 +55,13 @@ class UnifiedCatalogTest {
         assertEquals(AnimeKind.MOVIE, AnimeKind.parse("Полнометражный фильм"))
         assertEquals(AnimeKind.SERIES, AnimeKind.parse("TV"))
         assertEquals(AnimeKind.UNKNOWN, AnimeKind.parse(""))
+        assertEquals(AnimeKind.UNKNOWN, AnimeKind.parse("Persona"))
+        assertEquals(AnimeKind.UNKNOWN, AnimeKind.parse("Битва"))
     }
     @Test fun `dates accept ISO timezone and reject missing dates`() {
         assertEquals(parseProviderDate("2026-08-27T10:00:00Z"), parseProviderDate("2026-08-27T13:00:00+03:00"))
         assertEquals(0L, parseProviderDate("unknown"))
+        assertEquals(parseProviderDate("2026-07-07"), parseProviderDate("7 июль 2026"))
     }
     private fun source(voice: String = "AniLibria", quality: Int = 1080) = ResolvedSource(ProviderId.ANILIBRIA, "1", "ep1",
         ProviderSource("$voice:$quality", voice, "test", listOf(ProviderStream("https://example.test/$quality.m3u8", quality, StreamType.HLS))))

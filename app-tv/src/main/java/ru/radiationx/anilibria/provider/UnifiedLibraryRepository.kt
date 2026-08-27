@@ -8,6 +8,7 @@ import ru.radiationx.anilibria.favorites.LocalFavoritesRepository
 import ru.radiationx.data.datasource.holders.EpisodesCheckerHolder
 import ru.radiationx.data.entity.domain.types.ReleaseId
 import javax.inject.Inject
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Read-through migration: legacy stores remain intact; new choices override them explicitly. */
 class UnifiedLibraryRepository @Inject constructor(context: Context,
@@ -50,6 +51,30 @@ class UnifiedLibraryRepository @Inject constructor(context: Context,
         refs(provider, id).forEach { edit.putString("voice:${key(it)}", "${System.currentTimeMillis()}:$voice") }; edit.apply()
     }
     data class Resume(val position: Long, val duration: Long, val at: Long, val completed: Boolean)
+    suspend fun latestEpisode(details: ProviderAnimeDetails): ProviderEpisode? {
+        val references = refs(details.provider, details.id)
+        val candidates = mutableListOf<Triple<ProviderEpisode, Long, Boolean>>()
+        local.getHistory().filter { (it.provider to it.animeId) in references }.forEach { history ->
+            details.episodes.firstOrNull { it.season == history.season && it.special == history.special &&
+                (it.numberLabel == history.numberLabel || (history.provider == details.provider && history.animeId == details.id && it.id == history.episodeId)) }
+                ?.let { candidates += Triple(it, history.watchedAt, history.isCompleted) }
+        }
+        references.forEach { (provider, id) -> when (provider) {
+            ProviderId.ANIMEVOST -> vostHistory.getHistory().filter { it.animeUrl == id }.forEach { history ->
+                details.episodes.firstOrNull { it.season == 1 && !it.special && history.episodeNumber != null && it.number == history.episodeNumber }
+                    ?.let { candidates += Triple(it, history.watchedAt, history.isCompleted) }
+            }
+            ProviderId.ANILIBRIA -> id.toIntOrNull()?.let { release ->
+                withTimeoutOrNull(1_500) { nativeHistory.getEpisodes(ReleaseId(release)) }.orEmpty().forEach { history ->
+                    details.episodes.firstOrNull { it.season == 1 && !it.special && it.numberLabel == history.id.id }
+                        ?.let { candidates += Triple(it, history.lastAccessRaw, history.isViewed) }
+                }
+            }
+            else -> Unit
+        } }
+        val latest = candidates.maxByOrNull { it.second } ?: return details.episodes.firstOrNull()
+        return if (latest.third) details.episodes.getOrNull(details.episodes.indexOf(latest.first) + 1) ?: latest.first else latest.first
+    }
     suspend fun resume(provider: ProviderId, id: String, episode: ProviderEpisode): Resume? {
         val references = refs(provider, id)
         val found = local.getHistory().filter { history ->
@@ -61,7 +86,7 @@ class UnifiedLibraryRepository @Inject constructor(context: Context,
             ProviderId.ANIMEVOST -> vostHistory.getEpisodeProgress(i).filter { it.videoId == episode.id || (episode.number != null && it.episodeNumber == episode.number) }
                 .forEach { found += Resume(it.positionMs, it.durationMs, it.watchedAt, it.isCompleted) }
             ProviderId.ANILIBRIA -> i.toIntOrNull()?.let { release ->
-                nativeHistory.getEpisodes(ReleaseId(release)).filter { it.id.id.toString() == episode.numberLabel }
+                withTimeoutOrNull(1_500) { nativeHistory.getEpisodes(ReleaseId(release)) }.orEmpty().filter { it.id.id == episode.numberLabel }
                     .forEach { found += Resume(it.seek, 0, it.lastAccessRaw, it.isViewed) }
             }
             else -> Unit

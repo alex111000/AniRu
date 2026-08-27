@@ -11,7 +11,7 @@ enum class AnimeKind { MOVIE, SERIES, UNKNOWN;
             val text = value.lowercase(Locale.ROOT)
             return when {
                 Regex("movie|фильм|полнометраж|theatrical").containsMatchIn(text) -> MOVIE
-                Regex("(^|\\W)tv|сериал|серии|series|ova|ona|special|спешл|тв").containsMatchIn(text) -> SERIES
+                Regex("(?<![\\p{L}\\p{N}])(?:tv|ova|ona|special|series|тв)(?![\\p{L}\\p{N}])|сериал|серии|спешл").containsMatchIn(text) -> SERIES
                 else -> UNKNOWN
             }
         }
@@ -71,6 +71,13 @@ fun List<UnifiedAnime>.ordered(order: CatalogOrder): List<UnifiedAnime> = sorted
 
 fun parseProviderDate(value: String): Long {
     value.toLongOrNull()?.let { return if (it < 10_000_000_000L) it * 1000 else it }
+    val russian = Regex("(\\d{1,2})\\s+([а-яА-Я]+)\\s+(\\d{4})").find(value)
+    if (russian != null) {
+        val months = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+        val monthText = russian.groupValues[2].lowercase(Locale.ROOT).take(3).replace("мая", "май")
+        val month = months.indexOf(monthText) + 1
+        if (month > 0) return parseProviderDate("${russian.groupValues[1]}-$month-${russian.groupValues[3]}")
+    }
     val normalized = value.replace(Regex("Z$"), "+0000").replace(Regex("([+-]\\d{2}):(\\d{2})$"), "$1$2")
     for (pattern in listOf("yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd", "d-MM-yyyy")) {
         val parsed = runCatching { SimpleDateFormat(pattern, Locale.US).apply {

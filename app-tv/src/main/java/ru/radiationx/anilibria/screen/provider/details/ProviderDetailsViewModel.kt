@@ -98,9 +98,10 @@ class ProviderDetailsViewModel @Inject constructor(
     fun onPlayClick() {
         val current = details ?: return
         if (current.episodes.isEmpty()) return
-        val recent = localRepository.getHistory().firstOrNull { it.provider == providerId && it.animeId == current.id && !it.isCompleted }
-        val episode = current.episodes.firstOrNull { it.id == recent?.episodeId } ?: current.episodes.first()
-        router.navigateTo(ProviderPlayerScreen(providerId.wireId, current.id, episode.id, null))
+        viewModelScope.launch {
+            val episode = library.latestEpisode(current) ?: return@launch
+            router.navigateTo(ProviderPlayerScreen(providerId.wireId, current.id, episode.id, null))
+        }
     }
 
     fun onFavoriteClick() {

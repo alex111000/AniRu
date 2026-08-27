@@ -23,11 +23,11 @@ import kotlin.coroutines.resumeWithException
  * One conservative HTTP stack for external providers.
  * Network calls are coroutine-cancellable so provider timeouts actually stop work.
  */
-class ProviderHttpClient @Inject constructor(
-    context: Context,
-) {
-    private val client = OkHttpClient.Builder()
-        .cache(Cache(File(context.cacheDir, "aniru_provider_http"), CACHE_BYTES))
+class ProviderHttpClient private constructor(context: Context?, testClient: OkHttpClient?) {
+    @Inject constructor(context: Context) : this(context, null)
+    internal constructor(client: OkHttpClient) : this(null, client)
+    private val client = testClient ?: OkHttpClient.Builder()
+        .cache(Cache(File(requireNotNull(context).cacheDir, "aniru_provider_http"), CACHE_BYTES))
         .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)

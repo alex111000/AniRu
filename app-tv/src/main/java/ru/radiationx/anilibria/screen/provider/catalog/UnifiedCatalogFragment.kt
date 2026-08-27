@@ -67,12 +67,12 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
                     setMainImageDimensions(dp(width), dp((width * 1.45).toInt()))
                     setMainImageScaleType(ImageView.ScaleType.CENTER_CROP)
                 })
-                override fun onBindViewHolder(holder: ViewHolder, item: Any) {
-                    val anime = item as UnifiedAnime
+                override fun onBindViewHolder(holder: ViewHolder, item: Any?) {
+                    val anime = item as? UnifiedAnime ?: return
                     (holder.view as ImageCardView).apply {
                         titleText = anime.primary.title
                         contentText = listOf(anime.year.takeIf { it > 0 }?.toString().orEmpty(), "Источников: ${anime.versions.size}").filter { it.isNotBlank() }.joinToString(" • ")
-                        mainImageView.showImageUrl(anime.versions.firstOrNull { it.posterUrl.isNotBlank() }?.posterUrl.orEmpty())
+                        mainImageView?.showImageUrl(anime.versions.firstOrNull { it.posterUrl.isNotBlank() }?.posterUrl.orEmpty())
                         contentDescription = titleText
                     }
                 }

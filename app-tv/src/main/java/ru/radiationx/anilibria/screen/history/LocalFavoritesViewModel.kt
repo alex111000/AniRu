@@ -9,6 +9,7 @@ import ru.radiationx.anilibria.favorites.LocalFavoritesRepository
 import ru.radiationx.anilibria.provider.ProviderLocalRepository
 import ru.radiationx.data.interactors.ReleaseInteractor
 import javax.inject.Inject
+import kotlinx.coroutines.withTimeoutOrNull
 
 class LocalFavoritesViewModel @Inject constructor(
     private val localFavoritesRepository: LocalFavoritesRepository,
@@ -28,9 +29,11 @@ class LocalFavoritesViewModel @Inject constructor(
     }
 
     override suspend fun getLoader(requestPage: Int): List<LibriaCard> {
-        val aniLibria = localFavoritesRepository.getIds().mapNotNull { id ->
-            releaseInteractor.getFull(id)?.let { release -> converter.toCard(release) }
-        }
+        val ids = localFavoritesRepository.getIds()
+        val cached = mutableMapOf<ru.radiationx.data.entity.domain.types.ReleaseId, LibriaCard>()
+        // One missing native title must not hold all local favorites behind a spinner.
+        withTimeoutOrNull(1_500) { ids.forEach { id -> releaseInteractor.getFull(id)?.let { cached[id] = converter.toCard(it) } } }
+        val aniLibria = ids.map { id -> cached[id] ?: LibriaCard("AniLibria · ${id.id}", "Открыть описание", "", LibriaCard.Type.Release(id)) }
         val animeVost = animeVostFavoritesRepository.getFavorites().map { item ->
             LibriaCard(
                 title = item.animeTitle,

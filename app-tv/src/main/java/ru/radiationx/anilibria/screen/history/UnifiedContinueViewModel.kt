@@ -10,6 +10,7 @@ import ru.radiationx.data.datasource.holders.EpisodesCheckerHolder
 import ru.radiationx.data.interactors.ReleaseInteractor
 import ru.radiationx.data.repository.HistoryRepository
 import javax.inject.Inject
+import kotlinx.coroutines.withTimeoutOrNull
 
 class UnifiedContinueViewModel @Inject constructor(
     private val releaseInteractor: ReleaseInteractor,
@@ -31,13 +32,13 @@ class UnifiedContinueViewModel @Inject constructor(
 
     override suspend fun getLoader(requestPage: Int): List<LibriaCard> {
         val aniLibriaTimed = runCatching {
-            val accesses = episodesCheckerHolder.getEpisodes()
+            val accesses = withTimeoutOrNull(1_500) { episodesCheckerHolder.getEpisodes() }.orEmpty()
             val lastAccessByRelease = accesses
                 .groupBy { it.id.releaseId }
                 .mapValues { (_, values) -> values.maxByOrNull { it.lastAccessRaw } }
             val ids = lastAccessByRelease.keys
             if (ids.isEmpty()) return@runCatching emptyList<TimedCard>()
-            historyRepository.getReleases().items
+            (withTimeoutOrNull(1_500) { historyRepository.getReleases() }?.items.orEmpty())
                 .filter { it.id in ids }
                 .map { release ->
                     val access = lastAccessByRelease[release.id]
