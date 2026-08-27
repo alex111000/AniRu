@@ -29,7 +29,7 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
     private val router by lazy { get<Router>() }
     private val mode get() = arguments?.getString("mode") ?: "SERIES"
     private val browseAdapter = object : BrowseSupportFragment.MainFragmentAdapter<UnifiedCatalogFragment>(this) {
-        override fun isScrolling(): Boolean = grid?.scrollState != 0
+        override fun isScrolling(): Boolean = (grid?.scrollState ?: 0) != 0
     }
     override fun getMainFragmentAdapter(): BrowseSupportFragment.MainFragmentAdapter<*> = browseAdapter
     private var grid: VerticalGridView? = null
@@ -95,6 +95,12 @@ class UnifiedCatalogFragment : Fragment(), BrowseSupportFragment.MainFragmentAda
                 setHorizontalSpacing(dp(12)); setVerticalSpacing(dp(16))
                 this.adapter = bridge
                 clipToPadding = false
+                var columns = 0
+                addOnLayoutChangeListener { v, _, _, _, _, _, _, _, _ ->
+                    val cardWidth = if (resources.configuration.screenWidthDp >= 960) 140 else 116
+                    val fitting = ((v.width + dp(12)) / dp(cardWidth + 12)).coerceIn(1, 8)
+                    if (fitting != columns) { columns = fitting; setNumColumns(columns) }
+                }
             }.also { addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)) }
             addView(Button(context).apply {
                 text = "Показать ещё"; isAllCaps = false

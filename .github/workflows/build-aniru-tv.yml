@@ -94,3 +94,34 @@ jobs:
             app-tv/build/reports/lint-results-appDebug.html
             app-tv/build/intermediates/lint_intermediate_text_report/
           if-no-files-found: ignore
+
+  ui-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: AniRu-TV-v2.0.0-beta1-debug
+          path: smoke-apk
+      - name: Enable KVM for the ephemeral emulator
+        run: sudo chmod 666 /dev/kvm
+      - name: Test cached catalog UI on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: python3 scripts/android_ui_smoke.py
+      - name: Upload UI verification
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: AniRu-v2.0.0-beta1-ui-smoke
+          path: ui-smoke/
+          if-no-files-found: ignore

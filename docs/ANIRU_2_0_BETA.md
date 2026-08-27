@@ -3,6 +3,7 @@
 ## Included
 
 - Main: Continue watching and Favorites. Movies and Series are shared poster grids.
+- Cold launch no longer waits for the legacy AniLibria configuration endpoint. Local library and other providers remain reachable when that endpoint is offline.
 - Global anime search. Genre/year filters. Default order: added date descending, then year descending.
 - Conservative deduplication: known external identifiers, or exact alternate names + matching year/type. Unknown metadata is not enough to merge. Different seasons, remakes and films stay separate.
 - Eight native provider adapters: AniLibria/AniLiberty, AnimeVost, YummyAnime, SameBand, AnimeLib, AnimeGo, DreamersCast, HDRezka (anime only).
@@ -25,6 +26,6 @@ This is a beta for on-device testing, not a claim that eight third-party service
 
 ## Verification
 
-The CI pipeline runs AnimeVost SDK tests, TV app unit tests, lint and APK assembly. New tests cover canonical identity, sorting, season/special matching, short playback races, deadlines and cancellation. Live playback, focus navigation and migration still need confirmation on the target Android TV/phone.
+The CI pipeline runs AnimeVost SDK tests, TV app unit tests, lint, APK assembly and an offline emulator UI smoke test. New tests cover canonical identity, sorting, season/special matching, short playback races, deadlines, cancellation and native adapter response fixtures. The emulator uses labelled synthetic catalog entries only to test cached grid rendering and navigation; it does not prove live source availability. Live playback and migration still need confirmation on the target Android TV/phone.
 
 Provider parsers are native adaptations informed by vypivshiy/anicli-api (MIT). See THIRD_PARTY_NOTICES.md and the bundled license asset.
