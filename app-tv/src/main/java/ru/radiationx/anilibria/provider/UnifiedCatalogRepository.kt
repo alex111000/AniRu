@@ -51,7 +51,8 @@ class UnifiedCatalogRepository @Inject constructor(context: Context, private val
                             val saved = gson.fromJson(file.openRead().bufferedReader().use { it.readText() }, Snapshot::class.java)
                             if (saved != null) {
                                 saved.entries.forEach { entries[it.anime.reference] = it }
-                                batchTime = saved.batchTime
+                                // Old titles retain firstSeen; newly discovered titles belong to
+                                // this indexing session, not the previous cache's timestamp.
                             }
                         }.onFailure { entries.clear() }
                         initialized = true
