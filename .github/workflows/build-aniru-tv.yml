@@ -12,6 +12,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      ANIRU_DEBUG_KEYSTORE: /tmp/aniru-tv-ci-debug.keystore
 
     steps:
       - name: Checkout
@@ -37,8 +39,17 @@ jobs:
       - name: Preserve debug signing identity for future updates
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: aniru-tv-debug-signing-v2
+          path: /tmp/aniru-tv-ci-debug.keystore
+          key: aniru-tv-debug-signing-v3
+
+      - name: Initialize explicit debug signing key
+        run: |
+          if [ ! -f "$ANIRU_DEBUG_KEYSTORE" ]; then
+            keytool -genkeypair -keystore "$ANIRU_DEBUG_KEYSTORE" \
+              -storepass android -keypass android -alias androiddebugkey \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA -keysize 2048 -validity 10950
+          fi
 
       - name: Test AnimeVost long playlists
         run: |

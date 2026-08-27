@@ -146,6 +146,24 @@ class UnifiedCatalogRepository @Inject constructor(context: Context, private val
         group.versions.any { it.provider == provider && it.id == id }
     }
 
+    /** Only verified copies of this title compete; an unrelated search result is never substituted. */
+    suspend fun getAvailableDetails(provider: ProviderId, id: String): ProviderAnimeDetails {
+        val versions = group(provider, id)?.versions.orEmpty()
+        val expected = versions.firstOrNull { it.provider == provider && it.id == id }
+        val withoutEpisodes = java.util.concurrent.atomic.AtomicReference<ProviderAnimeDetails?>()
+        val targets = (listOf(provider to id) + versions.map { it.provider to it.id }).distinct()
+            .filter { enabled(it.first) }
+        return firstAvailable(targets.map { (source, animeId) -> suspend {
+            withTimeoutOrNull(if (targets.size == 1) 8_000L else 3_000L) {
+                val loaded = getDetails(source, animeId)
+                if (source != provider && (expected == null || !AnimeIdentity.same(expected, loaded.asAnime()))) null
+                else if (loaded.episodes.isEmpty()) { withoutEpisodes.compareAndSet(null, loaded); null }
+                else loaded
+            }
+        } }, 8_000L) ?: withoutEpisodes.get()
+            ?: throw java.io.IOException("Источники не ответили. Повторите позже или проверьте настройки источников.")
+    }
+
     suspend fun getDetails(provider: ProviderId, id: String): ProviderAnimeDetails = withContext(Dispatchers.IO) {
         val key = "${provider.wireId}|$id"
         mutex.withLock { details[key]?.takeIf { System.currentTimeMillis() - it.first < 300_000 }?.let { return@withContext it.second } }

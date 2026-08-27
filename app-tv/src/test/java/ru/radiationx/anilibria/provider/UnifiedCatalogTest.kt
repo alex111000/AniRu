@@ -96,4 +96,31 @@ class UnifiedCatalogTest {
         testScheduler.runCurrent(); job.cancelAndJoin()
         assertTrue(job.isCancelled)
     }
+    @Test fun `title details use a fast verified copy and cancel the stalled primary`() = runTest {
+        var cancelled = false
+        val result = firstAvailable(listOf(
+            suspend { try { awaitCancellation() } finally { cancelled = true } },
+            suspend { delay(120); "available copy" },
+        ), 8_000)
+        assertEquals("available copy", result)
+        assertEquals(120L, testScheduler.currentTime)
+        assertTrue(cancelled)
+    }
+    @Test fun `failed detail sources do not block the remaining candidates`() = runTest {
+        val result = firstAvailable<String>(listOf(
+            suspend { throw java.io.IOException("offline") },
+            suspend { null },
+            suspend { delay(200); "details" },
+        ), 8_000, concurrency = 2)
+        assertEquals("details", result)
+    }
+    @Test fun `detail race deadline stops all hung requests`() = runTest {
+        assertNull(firstAvailable<String>(listOf(suspend { awaitCancellation() }), 8_000))
+        assertEquals(8_000L, testScheduler.currentTime)
+    }
+    @Test fun `detail race respects caller cancellation`() = runTest {
+        val job = launch { firstAvailable<String>(listOf(suspend { awaitCancellation() }), 8_000) }
+        testScheduler.runCurrent(); job.cancelAndJoin()
+        assertTrue(job.isCancelled)
+    }
 }

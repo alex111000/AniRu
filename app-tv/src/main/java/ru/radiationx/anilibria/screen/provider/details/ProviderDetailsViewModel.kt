@@ -60,24 +60,24 @@ class ProviderDetailsViewModel @Inject constructor(
         viewModelScope.launch {
             loadingData.value = true
             errorData.value = null
-            runCatching { catalog.getDetails(providerId, extra.animeId) }
+            runCatching { catalog.getAvailableDetails(providerId, extra.animeId) }
                 .onSuccess { loaded ->
                     details = loaded
-                    detailsData.value = loaded.toLibriaDetails(library.favorite(providerId, loaded.id))
+                    detailsData.value = loaded.toLibriaDetails(library.favorite(loaded.provider, loaded.id))
                     val visible = loaded.episodes
-                    val progress = localRepository.getHistory().filter { it.provider == providerId && it.animeId == loaded.id }.associateBy { it.episodeId }
+                    val progress = localRepository.getHistory().filter { it.provider == loaded.provider && it.animeId == loaded.id }.associateBy { it.episodeId }
                     episodesData.value = visible.map { episode ->
                         LibriaCard(
                             title = (if (progress[episode.id]?.isCompleted == true) "✓ " else "") + episode.title,
                             description = listOfNotNull(
-                                providerId.uiName,
+                                loaded.provider.uiName,
                                 "Сезон ${episode.season}",
                                 episode.number?.let { "Серия $it" },
                                 progress[episode.id]?.takeIf { !it.isCompleted }?.let { "${it.progressPercent}%" },
                             ).joinToString(" • "),
                             image = episode.thumbnailUrl.ifBlank { loaded.posterUrl },
                             type = LibriaCard.Type.ProviderEpisode(
-                                providerId = providerId.wireId,
+                                providerId = loaded.provider.wireId,
                                 animeId = loaded.id,
                                 episodeId = episode.id,
                                 episodeNumber = episode.number,
@@ -100,7 +100,7 @@ class ProviderDetailsViewModel @Inject constructor(
         if (current.episodes.isEmpty()) return
         viewModelScope.launch {
             val episode = library.latestEpisode(current) ?: return@launch
-            router.navigateTo(ProviderPlayerScreen(providerId.wireId, current.id, episode.id, null))
+            router.navigateTo(ProviderPlayerScreen(current.provider.wireId, current.id, episode.id, null))
         }
     }
 

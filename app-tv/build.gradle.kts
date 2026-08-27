@@ -43,6 +43,14 @@ android {
     }
 
     signingConfigs {
+        providers.environmentVariable("ANIRU_DEBUG_KEYSTORE").orNull?.let { path ->
+            getByName("debug") {
+                storeFile = file(path)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (hasReleaseSigningConfig) {
             create("release") {
                 storeFile = file(localProperties.getProperty("storeFile"))

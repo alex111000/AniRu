@@ -8,10 +8,11 @@
 - Conservative deduplication: known external identifiers, or exact alternate names + matching year/type. Unknown metadata is not enough to merge. Different seasons, remakes and films stay separate.
 - Eight native provider adapters: AniLibria/AniLiberty, AnimeVost, YummyAnime, SameBand, AnimeLib, AnimeGo, DreamersCast, HDRezka (anime only).
 - Sequential paged catalog synchronization and on-disk metadata cache. Partial results stay usable when a provider fails. Source-reported addition dates are preferred; otherwise first indexing time is used, not release year masquerading as an addition date.
+- Opening title details can use another already-matched provider copy when the primary is unavailable; this lookup has an eight-second deadline and cancels unused requests.
 - Bounded playback resolution (6 seconds maximum, 450ms additional comparison window after a suitable result). This is not a guarantee of first frame within six seconds: media buffering is separate and has an 8-second fallback watchdog.
 - Source, dubbing, quality and episode menus. Highest supported adaptive video track by default, retained dubbing, same-episode fallback, no silent cross-dub fallback.
 - Legacy favorites/history remain intact. The unified view reads them and keeps explicit overrides for new favorite choices. Existing per-episode positions are read where episode identity is known.
-- Debug signing identity is cached for subsequent builds beginning with this version. This cannot recreate keys used by older, uncached CI builds.
+- The CI debug signing path is explicit and the generated key is cached for subsequent builds. Cache eviction can still lose it; a permanently configured release-signing key is required for durable production update identity. This cannot recreate keys used by older, uncached CI builds.
 
 ## Important limitations / device validation
 
