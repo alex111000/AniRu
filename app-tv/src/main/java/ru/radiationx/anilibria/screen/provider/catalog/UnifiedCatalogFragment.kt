@@ -44,7 +44,6 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
     private var genre: String? = null
     private var year: Int? = null
     private var order = CatalogOrder.ADDED
-    private var count = 60
     private var query = ""
     private var searchJob: Job? = null
     private var renderJob: Job? = null
@@ -54,7 +53,6 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
         genre = state?.getString("genre")
         year = state?.getInt("year")?.takeIf { it > 0 }
         order = state?.getString("order")?.let { runCatching { CatalogOrder.valueOf(it) }.getOrNull() } ?: CatalogOrder.ADDED
-        count = state?.getInt("count", 60) ?: 60
         query = state?.getString("query").orEmpty()
         title = when (mode) { "MOVIE" -> "Фильмы"; "SEARCH" -> "Поиск"; else -> "Сериалы" }
         setGridPresenter(VerticalGridPresenter().apply { numberOfColumns = 6 })
@@ -88,10 +86,7 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
                 is LibriaCard -> (item.type as? LibriaCard.Type.Provider)?.let {
                     router.navigateTo(ProviderDetailsScreen(it.providerId, it.animeId))
                 }
-                is LinkCard -> {
-                    val firstNew = count
-                    count += 60; render(); setSelectedPosition(firstNew)
-                }
+                is LinkCard -> Unit
             }
         }
         sourceItems = catalog.items.value
@@ -102,7 +97,7 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
                 if (mode != "SEARCH") launch { catalog.items.collect {
                     sourceItems = it
                     renderJob?.cancel()
-                    renderJob = launch { delay(120); render() }
+                    renderJob = launch { delay(500); render() }
                 } }
                 launch { catalog.loading.collect { if (sourceItems.isEmpty()) render() } }
             }
@@ -120,13 +115,12 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
                 (year == null || item.year == year) &&
                 (normalized.isEmpty() || item.versions.any { AnimeIdentity.names(it).any { name -> name.contains(normalized) } })
         }.ordered(order)
-        val visible = filtered.take(count).mapTo(mutableListOf<CardItem>()) { anime ->
+        val visible = filtered.mapTo(mutableListOf<CardItem>()) { anime ->
             LibriaCard(anime.primary.title,
                 listOf(anime.year.takeIf { it > 0 }?.toString().orEmpty(), anime.primary.description).filter { it.isNotBlank() }.joinToString(" · "),
                 anime.versions.firstOrNull { it.posterUrl.isNotBlank() }?.posterUrl.orEmpty(),
                 LibriaCard.Type.Provider(anime.primary.provider.wireId, anime.primary.id))
         }
-        if (filtered.size > count) visible.add(LinkCard("Показать ещё"))
         cards.setItems(visible, CardDiffCallback)
         setDescriptionVisible(visible.isNotEmpty())
         if (visible.isEmpty()) {
@@ -145,18 +139,18 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
     private fun chooseGenre() {
         val values = listOf("Все жанры") + sourceItems.flatMap { it.genres }.filter { it.isNotBlank() }.distinct().sorted()
         AlertDialog.Builder(requireContext()).setTitle("Жанр").setItems(values.toTypedArray()) { _, i ->
-            genre = values[i].takeUnless { i == 0 }; count = 60; render(); setSelectedPosition(0)
+            genre = values[i].takeUnless { i == 0 }; render(); setSelectedPosition(0)
         }.show()
     }
     private fun chooseYear() {
         val values = sourceItems.map { it.year }.filter { it > 0 }.distinct().sortedDescending()
         AlertDialog.Builder(requireContext()).setTitle("Год выпуска").setItems((listOf("Все годы") + values.map { it.toString() }).toTypedArray()) { _, i ->
-            year = values.getOrNull(i - 1); count = 60; render(); setSelectedPosition(0)
+            year = values.getOrNull(i - 1); render(); setSelectedPosition(0)
         }.show()
     }
     private fun chooseOrder() {
         AlertDialog.Builder(requireContext()).setTitle("Сортировка").setItems(CatalogOrder.entries.map { it.label }.toTypedArray()) { _, i ->
-            order = CatalogOrder.entries[i]; count = 60; render(); setSelectedPosition(0)
+            order = CatalogOrder.entries[i]; render(); setSelectedPosition(0)
         }.show()
     }
     private fun searchDialog() {
@@ -166,7 +160,7 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
             .setNeutralButton("Сбросить") { _, _ -> search("") }.setNegativeButton("Отмена", null).show()
     }
     private fun search(text: String) {
-        query = text.trim(); count = 60; searchJob?.cancel()
+        query = text.trim(); searchJob?.cancel()
         sourceItems = catalog.items.value; render()
         if (query.length >= 2) searchJob = viewLifecycleOwner.lifecycleScope.launch {
             catalog.search(query) { sourceItems = it; render() }
@@ -174,7 +168,7 @@ class UnifiedCatalogFragment : BaseVerticalGridFragment(), BrowseSupportFragment
     }
     override fun onSaveInstanceState(state: Bundle) {
         state.putString("genre", genre); state.putInt("year", year ?: 0)
-        state.putString("order", order.name); state.putString("query", query); state.putInt("count", count)
+        state.putString("order", order.name); state.putString("query", query)
         super.onSaveInstanceState(state)
     }
     override fun onDestroyView() {
