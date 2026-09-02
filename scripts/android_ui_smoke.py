@@ -89,7 +89,7 @@ try:
         adb("shell", "input", "keyevent", "KEYCODE_DPAD_RIGHT")
         raw = wait_for(lambda ns: any(n.get("text") == fixture_title or n.get("content-desc") == fixture_title for n in ns))
         screenshot(filename, raw)
-        assert any(n.get("text") == "Сортировка" for n in ET.fromstring(raw).iter("node"))
+        assert any(n.get("text") == "Недавно добавленные" for n in ET.fromstring(raw).iter("node")), "Legacy sort control missing"
         if name == "Фильмы":
             more = [n for n in ET.fromstring(raw).iter("node") if n.get("text") == "Показать ещё"]
             assert more and tap(more[0]), "Pagination control missing for the 65-movie fixture"

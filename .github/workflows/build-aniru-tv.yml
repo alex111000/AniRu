@@ -90,7 +90,7 @@ jobs:
       - name: Upload AniRu APK
         uses: actions/upload-artifact@v6
         with:
-          name: AniRu-TV-v2.0.0-beta1-debug
+          name: AniRu-TV-v2.0.0-beta2-debug
           path: app-tv/build/outputs/apk/app/debug/*.apk
           if-no-files-found: error
 
@@ -98,7 +98,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: AniRu-v2.0.0-beta1-verification-reports
+          name: AniRu-v2.0.0-beta2-verification-reports
           path: |
             animevost-sdk/build/reports/tests/
             app-tv/build/reports/tests/
@@ -116,7 +116,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
-          name: AniRu-TV-v2.0.0-beta1-debug
+          name: AniRu-TV-v2.0.0-beta2-debug
           path: smoke-apk
       - name: Enable KVM for the ephemeral emulator
         run: sudo chmod 666 /dev/kvm
@@ -133,6 +133,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: AniRu-v2.0.0-beta1-ui-smoke
+          name: AniRu-v2.0.0-beta2-ui-smoke
           path: ui-smoke/
           if-no-files-found: ignore

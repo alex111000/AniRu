@@ -4,12 +4,20 @@ import com.github.terrakok.cicerone.Router
 import kotlinx.coroutines.flow.MutableStateFlow
 import ru.radiationx.anilibria.screen.LifecycleViewModel
 import ru.radiationx.anilibria.screen.CatalogSourcesGuidedScreen
-import ru.radiationx.anilibria.screen.SuggestionsScreen
+import ru.radiationx.anilibria.screen.UnifiedCatalogScreen
+import ru.radiationx.anilibria.provider.UnifiedCatalogRepository
 import javax.inject.Inject
 
 class MainPagesViewModel @Inject constructor(
     private val router: Router,
+    private val catalog: UnifiedCatalogRepository,
 ) : LifecycleViewModel() {
+
+    override fun onCreate() {
+        super.onCreate()
+        // Start disk restoration and background refresh while the user is on Home.
+        catalog.start()
+    }
 
     // AniRu is a personal fork; upstream AniLiberty update checks are intentionally disabled.
     val hasUpdatesData = MutableStateFlow(false)
@@ -19,10 +27,10 @@ class MainPagesViewModel @Inject constructor(
     }
 
     fun onCatalogClick() {
-        router.navigateTo(ru.radiationx.anilibria.screen.UnifiedCatalogScreen("SERIES"))
+        router.navigateTo(CatalogSourcesGuidedScreen())
     }
 
     fun onSearchClick() {
-        router.navigateTo(ru.radiationx.anilibria.screen.UnifiedCatalogScreen("SEARCH"))
+        router.navigateTo(UnifiedCatalogScreen("SEARCH"))
     }
 }
