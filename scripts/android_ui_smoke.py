@@ -92,9 +92,8 @@ try:
         assert any(n.get("text") == "Недавно добавленные" for n in ET.fromstring(raw).iter("node")), "Legacy sort control missing"
         if name == "Фильмы":
             assert not any(n.get("text") == "Показать ещё" for n in ET.fromstring(raw).iter("node")), "Unified catalog must not require pagination"
-            for _ in range(11):
-                adb("shell", "input", "keyevent", "KEYCODE_DPAD_DOWN")
-            raw = wait_for(lambda ns: any(n.get("content-desc") == "UI test movie 60" for n in ns))
+            adb("shell", "input", "keyevent", "KEYCODE_MOVE_END")
+            raw = wait_for(lambda ns: any(n.get("content-desc") == "UI test movie 64" for n in ns))
             screenshot(filename + "-full-catalog", raw)
         # Exercise remote focus separately from touch navigation.
         for key in ["KEYCODE_DPAD_RIGHT", "KEYCODE_DPAD_DOWN", "KEYCODE_DPAD_LEFT"]:
