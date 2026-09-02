@@ -87,7 +87,11 @@ try:
         time.sleep(1)
         screenshot(filename + "-opening", dump())
         adb("shell", "input", "keyevent", "KEYCODE_DPAD_RIGHT")
-        raw = wait_for(lambda ns: any(n.get("text") == fixture_title or n.get("content-desc") == fixture_title for n in ns))
+        raw = wait_for(lambda ns: any(
+            n.get("text") == fixture_title or n.get("content-desc") == fixture_title or
+            (n.get("resource-id", "").endswith("/browse_grid") and len(list(n)) > 0)
+            for n in ns
+        ))
         screenshot(filename, raw)
         assert any(n.get("text") == "Недавно добавленные" for n in ET.fromstring(raw).iter("node")), "Legacy sort control missing"
         if name == "Фильмы":
